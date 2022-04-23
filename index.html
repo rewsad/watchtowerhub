@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<!-- saved from url=(0025)http://watchtowerhub.com/ -->
+<html lang="en-US" class="" itemtype="https://schema.org/WebPage" itemscope=""><script>
+    window[Symbol.for('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')] = new (class PostClient {
+    constructor(name, destination) {
+        this.name = name;
+        this.destination = destination;
+        this.serverListeners = {};
+        this.bgRequestsListeners = {};
+        this.bgEventsListeners = {};
+        window.addEventListener('message', (message) => {
+            const data = message.data;
+            const isNotForMe = !(data.destination && data.destination === this.name);
+            const hasNotEventProp = !data.event;
+            if (isNotForMe || hasNotEventProp) {
+                return;
+            }
+            if (data.event === 'MARIO_POST_SERVER__BG_RESPONSE') {
+                const response = data.args;
+                if (this.hasBgRequestListener(response.requestId)) {
+                    try {
+                        this.bgRequestsListeners[response.requestId](response.response);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                    delete this.bgRequestsListeners[response.requestId];
+                }
+            }
+            else if (data.event === 'MARIO_POST_SERVER__BG_EVENT') {
+                const response = data.args;
+                if (this.hasBgEventListener(response.event)) {
+                    try {
+                        this.bgEventsListeners[data.id](response.payload);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
+            else if (this.hasServerListener(data.event)) {
+                try {
+                    this.serverListeners[data.event](data.args);
+                }
+                catch (e) {
+                    console.log(e);
+                }
+            }
+            else {
+                console.log(`event not handled: ${data.event}`);
+            }
+        });
+    }
+    emitToServer(event, args) {
+        const id = this.generateUIID();
+        const message = {
+            args,
+            destination: this.destination,
+            event,
+            id,
+        };
+        window.postMessage(message, location.origin);
+        return id;
+    }
+    emitToBg(bgEventName, args) {
+        const requestId = this.generateUIID();
+        const request = { bgEventName, requestId, args };
+        this.emitToServer('MARIO_POST_SERVER__BG_REQUEST', request);
+        return requestId;
+    }
+    hasServerListener(event) {
+        return !!this.serverListeners[event];
+    }
+    hasBgRequestListener(requestId) {
+        return !!this.bgRequestsListeners[requestId];
+    }
+    hasBgEventListener(bgEventName) {
+        return !!this.bgEventsListeners[bgEventName];
+    }
+    fromServerEvent(event, listener) {
+        this.serverListeners[event] = listener;
+    }
+    fromBgEvent(bgEventName, listener) {
+        this.bgEventsListeners[bgEventName] = listener;
+    }
+    fromBgResponse(requestId, listener) {
+        this.bgRequestsListeners[requestId] = listener;
+    }
+    generateUIID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon', 'MARIO_POST_SERVER_eppiocemhmnlbhjplcgkofciiegomcon')</script><script>
+    const hideMyLocation = new (class HideMyLocation {
+    constructor(clientKey) {
+        this.clientKey = clientKey;
+        this.watchIDs = {};
+        this.client = window[Symbol.for(clientKey)];
+        const getCurrentPosition = navigator.geolocation.getCurrentPosition;
+        const watchPosition = navigator.geolocation.watchPosition;
+        const clearWatch = navigator.geolocation.clearWatch;
+        const self = this;
+        navigator.geolocation.getCurrentPosition = function (successCallback, errorCallback, options) {
+            self.handle(getCurrentPosition, 'GET', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.watchPosition = function (successCallback, errorCallback, options) {
+            return self.handle(watchPosition, 'WATCH', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.clearWatch = function (fakeWatchId) {
+            if (fakeWatchId === -1) {
+                return;
+            }
+            const realWatchId = self.watchIDs[fakeWatchId];
+            delete self.watchIDs[fakeWatchId];
+            return clearWatch.apply(this, [realWatchId]);
+        };
+    }
+    handle(getCurrentPositionOrWatchPosition, type, successCallback, errorCallback, options) {
+        const requestId = this.client.emitToBg('HIDE_MY_LOCATION__GET_LOCATION');
+        let fakeWatchId = this.getRandomInt(0, 100000);
+        this.client.fromBgResponse(requestId, (response) => {
+            if (response.enabled) {
+                if (response.status === 'SUCCESS') {
+                    const position = this.map(response);
+                    successCallback(position);
+                }
+                else {
+                    const error = this.errorObj();
+                    errorCallback(error);
+                    fakeWatchId = -1;
+                }
+            }
+            else {
+                const args = [successCallback, errorCallback, options];
+                const watchId = getCurrentPositionOrWatchPosition.apply(navigator.geolocation, args);
+                if (type === 'WATCH') {
+                    this.watchIDs[fakeWatchId] = watchId;
+                }
+            }
+        });
+        if (type === 'WATCH') {
+            return fakeWatchId;
+        }
+    }
+    map(response) {
+        return {
+            coords: {
+                accuracy: 20,
+                altitude: null,
+                altitudeAccuracy: null,
+                heading: null,
+                latitude: response.latitude,
+                longitude: response.longitude,
+                speed: null,
+            },
+            timestamp: Date.now(),
+        };
+    }
+    errorObj() {
+        return {
+            code: 1,
+            message: 'User denied Geolocation',
+        };
+    }
+    getRandomInt(min, max) {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')
+  </script><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	
+	<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+	<link rel="profile" href="http://gmpg.org/xfn/11">
+	<title>Watch Tower Hub – Watch Tower Hub</title>
+<meta name="robots" content="max-image-preview:large">
+<link rel="dns-prefetch" href="http://client.crisp.chat/">
+<link rel="dns-prefetch" href="http://s.w.org/">
+<link rel="alternate" type="application/rss+xml" title="Watch Tower Hub » Feed" href="http://watchtowerhub.com/?feed=rss2">
+<link rel="alternate" type="application/rss+xml" title="Watch Tower Hub » Comments Feed" href="http://watchtowerhub.com/?feed=comments-rss2">
+			<script>document.documentElement.classList.remove( 'no-js' );</script>
+			<script>
+window._wpemojiSettings = {"baseUrl":"https:\/\/s.w.org\/images\/core\/emoji\/13.1.0\/72x72\/","ext":".png","svgUrl":"https:\/\/s.w.org\/images\/core\/emoji\/13.1.0\/svg\/","svgExt":".svg","source":{"concatemoji":"http:\/\/watchtowerhub.com\/wp-includes\/js\/wp-emoji-release.min.js?ver=5.9.3"}};
+/*! This file is auto-generated */
+!function(e,a,t){var n,r,o,i=a.createElement("canvas"),p=i.getContext&&i.getContext("2d");function s(e,t){var a=String.fromCharCode;p.clearRect(0,0,i.width,i.height),p.fillText(a.apply(this,e),0,0);e=i.toDataURL();return p.clearRect(0,0,i.width,i.height),p.fillText(a.apply(this,t),0,0),e===i.toDataURL()}function c(e){var t=a.createElement("script");t.src=e,t.defer=t.type="text/javascript",a.getElementsByTagName("head")[0].appendChild(t)}for(o=Array("flag","emoji"),t.supports={everything:!0,everythingExceptFlag:!0},r=0;r<o.length;r++)t.supports[o[r]]=function(e){if(!p||!p.fillText)return!1;switch(p.textBaseline="top",p.font="600 32px Arial",e){case"flag":return s([127987,65039,8205,9895,65039],[127987,65039,8203,9895,65039])?!1:!s([55356,56826,55356,56819],[55356,56826,8203,55356,56819])&&!s([55356,57332,56128,56423,56128,56418,56128,56421,56128,56430,56128,56423,56128,56447],[55356,57332,8203,56128,56423,8203,56128,56418,8203,56128,56421,8203,56128,56430,8203,56128,56423,8203,56128,56447]);case"emoji":return!s([10084,65039,8205,55357,56613],[10084,65039,8203,55357,56613])}return!1}(o[r]),t.supports.everything=t.supports.everything&&t.supports[o[r]],"flag"!==o[r]&&(t.supports.everythingExceptFlag=t.supports.everythingExceptFlag&&t.supports[o[r]]);t.supports.everythingExceptFlag=t.supports.everythingExceptFlag&&!t.supports.flag,t.DOMReady=!1,t.readyCallback=function(){t.DOMReady=!0},t.supports.everything||(n=function(){t.readyCallback()},a.addEventListener?(a.addEventListener("DOMContentLoaded",n,!1),e.addEventListener("load",n,!1)):(e.attachEvent("onload",n),a.attachEvent("onreadystatechange",function(){"complete"===a.readyState&&t.readyCallback()})),(n=t.source||{}).concatemoji?c(n.concatemoji):n.wpemoji&&n.twemoji&&(c(n.twemoji),c(n.wpemoji)))}(window,document,window._wpemojiSettings);
+</script><script src="./wp-emoji-release.min.js.download" type="text/javascript" defer=""></script>
+<style>
+img.wp-smiley,
+img.emoji {
+	display: inline !important;
+	border: none !important;
+	box-shadow: none !important;
+	height: 1em !important;
+	width: 1em !important;
+	margin: 0 0.07em !important;
+	vertical-align: -0.1em !important;
+	background: none !important;
+	padding: 0 !important;
+}
+</style>
+	<link rel="stylesheet" id="wp-block-library-css" href="./style.min.css" media="all">
+<style id="global-styles-inline-css">
+body{--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: #abb8c3;--wp--preset--color--white: #ffffff;--wp--preset--color--pale-pink: #f78da7;--wp--preset--color--vivid-red: #cf2e2e;--wp--preset--color--luminous-vivid-orange: #ff6900;--wp--preset--color--luminous-vivid-amber: #fcb900;--wp--preset--color--light-green-cyan: #7bdcb5;--wp--preset--color--vivid-green-cyan: #00d084;--wp--preset--color--pale-cyan-blue: #8ed1fc;--wp--preset--color--vivid-cyan-blue: #0693e3;--wp--preset--color--vivid-purple: #9b51e0;--wp--preset--color--theme-palette-1: #295CFF;--wp--preset--color--theme-palette-2: #0E94FF;--wp--preset--color--theme-palette-3: #1C0D5A;--wp--preset--color--theme-palette-4: #3D3D3D;--wp--preset--color--theme-palette-5: #57575D;--wp--preset--color--theme-palette-6: #636363;--wp--preset--color--theme-palette-7: #E1EBEE;--wp--preset--color--theme-palette-8: #EFF7FB;--wp--preset--color--theme-palette-9: #ffffff;--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple: linear-gradient(135deg,rgba(6,147,227,1) 0%,rgb(155,81,224) 100%);--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan: linear-gradient(135deg,rgb(122,220,180) 0%,rgb(0,208,130) 100%);--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange: linear-gradient(135deg,rgba(252,185,0,1) 0%,rgba(255,105,0,1) 100%);--wp--preset--gradient--luminous-vivid-orange-to-vivid-red: linear-gradient(135deg,rgba(255,105,0,1) 0%,rgb(207,46,46) 100%);--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray: linear-gradient(135deg,rgb(238,238,238) 0%,rgb(169,184,195) 100%);--wp--preset--gradient--cool-to-warm-spectrum: linear-gradient(135deg,rgb(74,234,220) 0%,rgb(151,120,209) 20%,rgb(207,42,186) 40%,rgb(238,44,130) 60%,rgb(251,105,98) 80%,rgb(254,248,76) 100%);--wp--preset--gradient--blush-light-purple: linear-gradient(135deg,rgb(255,206,236) 0%,rgb(152,150,240) 100%);--wp--preset--gradient--blush-bordeaux: linear-gradient(135deg,rgb(254,205,165) 0%,rgb(254,45,45) 50%,rgb(107,0,62) 100%);--wp--preset--gradient--luminous-dusk: linear-gradient(135deg,rgb(255,203,112) 0%,rgb(199,81,192) 50%,rgb(65,88,208) 100%);--wp--preset--gradient--pale-ocean: linear-gradient(135deg,rgb(255,245,203) 0%,rgb(182,227,212) 50%,rgb(51,167,181) 100%);--wp--preset--gradient--electric-grass: linear-gradient(135deg,rgb(202,248,128) 0%,rgb(113,206,126) 100%);--wp--preset--gradient--midnight: linear-gradient(135deg,rgb(2,3,129) 0%,rgb(40,116,252) 100%);--wp--preset--duotone--dark-grayscale: url('#wp-duotone-dark-grayscale');--wp--preset--duotone--grayscale: url('#wp-duotone-grayscale');--wp--preset--duotone--purple-yellow: url('#wp-duotone-purple-yellow');--wp--preset--duotone--blue-red: url('#wp-duotone-blue-red');--wp--preset--duotone--midnight: url('#wp-duotone-midnight');--wp--preset--duotone--magenta-yellow: url('#wp-duotone-magenta-yellow');--wp--preset--duotone--purple-green: url('#wp-duotone-purple-green');--wp--preset--duotone--blue-orange: url('#wp-duotone-blue-orange');--wp--preset--font-size--small: 14px;--wp--preset--font-size--medium: 24px;--wp--preset--font-size--large: 32px;--wp--preset--font-size--x-large: 42px;--wp--preset--font-size--larger: 40px;}.has-black-color{color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-color{color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-color{color: var(--wp--preset--color--white) !important;}.has-pale-pink-color{color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-color{color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-color{color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-color{color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-color{color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-color{color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-color{color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-color{color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-color{color: var(--wp--preset--color--vivid-purple) !important;}.has-black-background-color{background-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-background-color{background-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-background-color{background-color: var(--wp--preset--color--white) !important;}.has-pale-pink-background-color{background-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-background-color{background-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-background-color{background-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-background-color{background-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-background-color{background-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-background-color{background-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-background-color{background-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-background-color{background-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-background-color{background-color: var(--wp--preset--color--vivid-purple) !important;}.has-black-border-color{border-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-border-color{border-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-border-color{border-color: var(--wp--preset--color--white) !important;}.has-pale-pink-border-color{border-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-border-color{border-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-border-color{border-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-border-color{border-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-border-color{border-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-border-color{border-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-border-color{border-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-border-color{border-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-border-color{border-color: var(--wp--preset--color--vivid-purple) !important;}.has-vivid-cyan-blue-to-vivid-purple-gradient-background{background: var(--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple) !important;}.has-light-green-cyan-to-vivid-green-cyan-gradient-background{background: var(--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan) !important;}.has-luminous-vivid-amber-to-luminous-vivid-orange-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange) !important;}.has-luminous-vivid-orange-to-vivid-red-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-orange-to-vivid-red) !important;}.has-very-light-gray-to-cyan-bluish-gray-gradient-background{background: var(--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray) !important;}.has-cool-to-warm-spectrum-gradient-background{background: var(--wp--preset--gradient--cool-to-warm-spectrum) !important;}.has-blush-light-purple-gradient-background{background: var(--wp--preset--gradient--blush-light-purple) !important;}.has-blush-bordeaux-gradient-background{background: var(--wp--preset--gradient--blush-bordeaux) !important;}.has-luminous-dusk-gradient-background{background: var(--wp--preset--gradient--luminous-dusk) !important;}.has-pale-ocean-gradient-background{background: var(--wp--preset--gradient--pale-ocean) !important;}.has-electric-grass-gradient-background{background: var(--wp--preset--gradient--electric-grass) !important;}.has-midnight-gradient-background{background: var(--wp--preset--gradient--midnight) !important;}.has-small-font-size{font-size: var(--wp--preset--font-size--small) !important;}.has-medium-font-size{font-size: var(--wp--preset--font-size--medium) !important;}.has-large-font-size{font-size: var(--wp--preset--font-size--large) !important;}.has-x-large-font-size{font-size: var(--wp--preset--font-size--x-large) !important;}
+</style>
+<link rel="stylesheet" id="kadence-global-css" href="./global.min.css" media="all">
+<style id="kadence-global-inline-css">
+/* Kadence Base CSS */
+:root{--global-palette1:#295CFF;--global-palette2:#0E94FF;--global-palette3:#1C0D5A;--global-palette4:#3D3D3D;--global-palette5:#57575D;--global-palette6:#636363;--global-palette7:#E1EBEE;--global-palette8:#EFF7FB;--global-palette9:#ffffff;--global-palette9rgb:255, 255, 255;--global-palette-highlight:var(--global-palette1);--global-palette-highlight-alt:var(--global-palette2);--global-palette-highlight-alt2:var(--global-palette9);--global-palette-btn-bg:var(--global-palette1);--global-palette-btn-bg-hover:var(--global-palette2);--global-palette-btn:var(--global-palette9);--global-palette-btn-hover:var(--global-palette9);--global-body-font-family:Karla, var(--global-fallback-font);--global-heading-font-family:Prompt, var(--global-fallback-font);--global-primary-nav-font-family:inherit;--global-fallback-font:sans-serif;--global-display-fallback-font:sans-serif;--global-content-width:1170px;--global-content-narrow-width:842px;--global-content-edge-padding:1.5rem;--global-calc-content-width:calc(1170px - var(--global-content-edge-padding) - var(--global-content-edge-padding) );}:root body.kadence-elementor-colors{--e-global-color-kadence1:var(--global-palette1);--e-global-color-kadence2:var(--global-palette2);--e-global-color-kadence3:var(--global-palette3);--e-global-color-kadence4:var(--global-palette4);--e-global-color-kadence5:var(--global-palette5);--e-global-color-kadence6:var(--global-palette6);--e-global-color-kadence7:var(--global-palette7);--e-global-color-kadence8:var(--global-palette8);--e-global-color-kadence9:var(--global-palette9);}:root .has-theme-palette-1-background-color{background-color:var(--global-palette1);}:root .has-theme-palette-1-color{color:var(--global-palette1);}:root .has-theme-palette-2-background-color{background-color:var(--global-palette2);}:root .has-theme-palette-2-color{color:var(--global-palette2);}:root .has-theme-palette-3-background-color{background-color:var(--global-palette3);}:root .has-theme-palette-3-color{color:var(--global-palette3);}:root .has-theme-palette-4-background-color{background-color:var(--global-palette4);}:root .has-theme-palette-4-color{color:var(--global-palette4);}:root .has-theme-palette-5-background-color{background-color:var(--global-palette5);}:root .has-theme-palette-5-color{color:var(--global-palette5);}:root .has-theme-palette-6-background-color{background-color:var(--global-palette6);}:root .has-theme-palette-6-color{color:var(--global-palette6);}:root .has-theme-palette-7-background-color{background-color:var(--global-palette7);}:root .has-theme-palette-7-color{color:var(--global-palette7);}:root .has-theme-palette-8-background-color{background-color:var(--global-palette8);}:root .has-theme-palette-8-color{color:var(--global-palette8);}:root .has-theme-palette-9-background-color{background-color:var(--global-palette9);}:root .has-theme-palette-9-color{color:var(--global-palette9);}:root .has-theme-palette1-background-color{background-color:var(--global-palette1);}:root .has-theme-palette1-color{color:var(--global-palette1);}:root .has-theme-palette2-background-color{background-color:var(--global-palette2);}:root .has-theme-palette2-color{color:var(--global-palette2);}:root .has-theme-palette3-background-color{background-color:var(--global-palette3);}:root .has-theme-palette3-color{color:var(--global-palette3);}:root .has-theme-palette4-background-color{background-color:var(--global-palette4);}:root .has-theme-palette4-color{color:var(--global-palette4);}:root .has-theme-palette5-background-color{background-color:var(--global-palette5);}:root .has-theme-palette5-color{color:var(--global-palette5);}:root .has-theme-palette6-background-color{background-color:var(--global-palette6);}:root .has-theme-palette6-color{color:var(--global-palette6);}:root .has-theme-palette7-background-color{background-color:var(--global-palette7);}:root .has-theme-palette7-color{color:var(--global-palette7);}:root .has-theme-palette8-background-color{background-color:var(--global-palette8);}:root .has-theme-palette8-color{color:var(--global-palette8);}:root .has-theme-palette9-background-color{background-color:var(--global-palette9);}:root .has-theme-palette9-color{color:var(--global-palette9);}body{background:var(--global-palette8);}body, input, select, optgroup, textarea{font-style:normal;font-weight:normal;font-size:18px;line-height:1.6;font-family:var(--global-body-font-family);color:var(--global-palette3);}.content-bg, body.content-style-unboxed .site{background:var(--global-palette9);}h1,h2,h3,h4,h5,h6{font-family:var(--global-heading-font-family);}h1{font-style:normal;font-weight:700;font-size:65px;line-height:1;color:var(--global-palette3);}h2{font-style:normal;font-weight:700;font-size:50px;line-height:1;color:var(--global-palette3);}h3{font-style:normal;font-weight:700;font-size:30px;line-height:1.3;color:var(--global-palette3);}h4{font-style:normal;font-weight:500;font-size:22px;line-height:1.3;color:var(--global-palette3);}h5{font-style:normal;font-weight:normal;font-size:18px;line-height:1.5;color:var(--global-palette3);}h6{font-style:normal;font-weight:normal;font-size:14px;line-height:1.5;color:var(--global-palette3);}.entry-hero h1{font-style:normal;font-size:80px;line-height:1;letter-spacing:-0.05em;color:#ffffff;}.entry-hero .kadence-breadcrumbs{max-width:1170px;}.site-container, .site-header-row-layout-contained, .site-footer-row-layout-contained, .entry-hero-layout-contained, .comments-area, .alignfull > .wp-block-cover__inner-container, .alignwide > .wp-block-cover__inner-container{max-width:var(--global-content-width);}.content-width-narrow .content-container.site-container, .content-width-narrow .hero-container.site-container{max-width:var(--global-content-narrow-width);}@media all and (min-width: 1400px){.wp-site-blocks .content-container  .alignwide{margin-left:-115px;margin-right:-115px;width:unset;max-width:unset;}}@media all and (min-width: 1102px){.content-width-narrow .wp-site-blocks .content-container .alignwide{margin-left:-130px;margin-right:-130px;width:unset;max-width:unset;}}.content-style-boxed .wp-site-blocks .entry-content .alignwide{margin-left:-2rem;margin-right:-2rem;}@media all and (max-width: 1024px){.content-style-boxed .wp-site-blocks .entry-content .alignwide{margin-left:-2rem;margin-right:-2rem;}}@media all and (max-width: 767px){.content-style-boxed .wp-site-blocks .entry-content .alignwide{margin-left:-1.5rem;margin-right:-1.5rem;}}.content-area{margin-top:5rem;margin-bottom:5rem;}@media all and (max-width: 1024px){.content-area{margin-top:3rem;margin-bottom:3rem;}}@media all and (max-width: 767px){.content-area{margin-top:2rem;margin-bottom:2rem;}}.entry-content-wrap{padding:2rem;}@media all and (max-width: 1024px){.entry-content-wrap{padding:2rem;}}@media all and (max-width: 767px){.entry-content-wrap{padding:1.5rem;}}.entry.single-entry{box-shadow:0px 15px 15px -10px rgba(0,0,0,0.05);}.entry.loop-entry{box-shadow:0px 15px 15px -10px rgba(0,0,0,0.05);}.loop-entry .entry-content-wrap{padding:2rem;}@media all and (max-width: 1024px){.loop-entry .entry-content-wrap{padding:2rem;}}@media all and (max-width: 767px){.loop-entry .entry-content-wrap{padding:1.5rem;}}.primary-sidebar.widget-area .widget{margin-bottom:1.5em;color:var(--global-palette4);}.primary-sidebar.widget-area .widget-title{font-weight:700;font-size:20px;line-height:1.5;color:var(--global-palette3);}button, .button, .wp-block-button__link, input[type="button"], input[type="reset"], input[type="submit"], .fl-button, .elementor-button-wrapper .elementor-button{box-shadow:0px 0px 0px -7px rgba(0,0,0,0);}button:hover, button:focus, button:active, .button:hover, .button:focus, .button:active, .wp-block-button__link:hover, .wp-block-button__link:focus, .wp-block-button__link:active, input[type="button"]:hover, input[type="button"]:focus, input[type="button"]:active, input[type="reset"]:hover, input[type="reset"]:focus, input[type="reset"]:active, input[type="submit"]:hover, input[type="submit"]:focus, input[type="submit"]:active, .elementor-button-wrapper .elementor-button:hover, .elementor-button-wrapper .elementor-button:focus, .elementor-button-wrapper .elementor-button:active{box-shadow:0px 15px 25px -7px rgba(0,0,0,0.1);}@media all and (min-width: 1025px){.transparent-header .entry-hero .entry-hero-container-inner{padding-top:80px;}}@media all and (max-width: 1024px){.mobile-transparent-header .entry-hero .entry-hero-container-inner{padding-top:80px;}}@media all and (max-width: 767px){.mobile-transparent-header .entry-hero .entry-hero-container-inner{padding-top:80px;}}#colophon{background:var(--global-palette4);}.site-middle-footer-inner-wrap{padding-top:30px;padding-bottom:30px;grid-column-gap:30px;grid-row-gap:30px;}.site-middle-footer-inner-wrap .widget{margin-bottom:30px;}.site-middle-footer-inner-wrap .site-footer-section:not(:last-child):after{right:calc(-30px / 2);}.site-top-footer-wrap .site-footer-row-container-inner{font-style:normal;color:var(--global-palette9);}.site-footer .site-top-footer-wrap .site-footer-row-container-inner a:not(.button){color:var(--global-palette9);}.site-footer .site-top-footer-wrap .site-footer-row-container-inner a:not(.button):hover{color:var(--global-palette1);}.site-top-footer-inner-wrap{padding-top:120px;padding-bottom:60px;grid-column-gap:40px;grid-row-gap:40px;}.site-top-footer-inner-wrap .widget{margin-bottom:30px;}.site-top-footer-inner-wrap .widget-area .widget-title{font-style:normal;font-size:14px;color:var(--global-palette8);}.site-top-footer-inner-wrap .site-footer-section:not(:last-child):after{right:calc(-40px / 2);}.site-bottom-footer-wrap .site-footer-row-container-inner{font-style:normal;font-size:13px;color:#606060;border-top:0px none transparent;}.site-bottom-footer-inner-wrap{padding-top:30px;padding-bottom:30px;grid-column-gap:30px;}.site-bottom-footer-inner-wrap .widget{margin-bottom:30px;}.site-bottom-footer-inner-wrap .site-footer-section:not(:last-child):after{right:calc(-30px / 2);}.footer-social-inner-wrap{font-size:1.1em;margin-top:-0.3em;margin-left:calc(-0.3em / 2);margin-right:calc(-0.3em / 2);}.site-footer .site-footer-wrap .site-footer-section .footer-social-wrap .social-button{margin-top:0.3em;margin-left:calc(0.3em / 2);margin-right:calc(0.3em / 2);color:var(--global-palette9);background:rgba(255,255,255,0.2);border:2px none transparent;border-radius:3px;}.site-footer .site-footer-wrap .site-footer-section .footer-social-wrap .footer-social-inner-wrap .social-button:hover{color:var(--global-palette1);}#colophon .footer-html{font-style:normal;color:var(--global-palette9);}#colophon .site-footer-row-container .site-footer-row .footer-html a{color:var(--global-palette9);}#colophon .site-footer-row-container .site-footer-row .footer-html a:hover{color:var(--global-palette1);}#kt-scroll-up-reader, #kt-scroll-up{border:0px none currentColor;border-radius:4px 4px 4px 4px;color:var(--global-palette9);background:var(--global-palette1);bottom:60px;font-size:1em;padding:0.4em 0.4em 0.4em 0.4em;}#kt-scroll-up-reader.scroll-up-side-right, #kt-scroll-up.scroll-up-side-right{right:30px;}#kt-scroll-up-reader.scroll-up-side-left, #kt-scroll-up.scroll-up-side-left{left:30px;}#kt-scroll-up-reader:hover, #kt-scroll-up:hover{background:var(--global-palette2);}#colophon .footer-navigation .footer-menu-container > ul > li > a{padding-left:calc(1.2em / 2);padding-right:calc(1.2em / 2);color:var(--global-palette5);}#colophon .footer-navigation .footer-menu-container > ul li a:hover{color:var(--global-palette-highlight);}#colophon .footer-navigation .footer-menu-container > ul li.current-menu-item > a{color:var(--global-palette3);}.entry-hero.page-hero-section .entry-header{min-height:200px;}.post-archive-hero-section .entry-hero-container-inner{background-image:url('https://startertemplatecloud.com/e05/wp-content/uploads/sites/6/2020/12/pexels-fauxels-3182823.jpg');background-repeat:no-repeat;background-position:center;background-size:cover;}.entry-hero.post-archive-hero-section .entry-header{min-height:250px;}.post-archive-hero-section .hero-section-overlay{background:rgba(90,124,255,0.61);}.loop-entry.type-post h2.entry-title{font-style:normal;font-size:30px;line-height:1.4;color:var(--global-palette3);}
+/* Kadence Header CSS */
+.site-branding a.brand img{max-width:20px;}.site-branding a.brand img.svg-logo-image{width:20px;}.site-branding{padding:0px 0px 0px 0px;}.site-branding .site-title{font-style:normal;font-weight:700;font-size:26px;line-height:1.2;font-family:Prompt, var(--global-fallback-font);color:#ffffff;}#masthead, #masthead .kadence-sticky-header.item-is-fixed:not(.item-at-start):not(.site-header-row-container), #masthead .kadence-sticky-header.item-is-fixed:not(.item-at-start) > .site-header-row-container-inner{background:#ffffff;}.site-main-header-inner-wrap{min-height:80px;}.site-top-header-inner-wrap{min-height:0px;}.site-bottom-header-inner-wrap{min-height:0px;}.header-navigation[class*="header-navigation-style-underline"] .header-menu-container.primary-menu-container>ul>li>a:after{width:calc( 100% - 1.2em);}.main-navigation .primary-menu-container > ul > li.menu-item > a{padding-left:calc(1.2em / 2);padding-right:calc(1.2em / 2);padding-top:0.4em;padding-bottom:0.4em;color:#ffffff;}.main-navigation .primary-menu-container > ul > li.menu-item > .dropdown-nav-special-toggle{right:calc(1.2em / 2);}.main-navigation .primary-menu-container > ul li.menu-item > a{font-style:normal;font-weight:400;font-size:18px;}.main-navigation .primary-menu-container > ul > li.menu-item > a:hover{color:#ffffff;}.main-navigation .primary-menu-container > ul > li.menu-item.current-menu-item > a{color:#f7fafc;}.header-navigation[class*="header-navigation-style-underline"] .header-menu-container.secondary-menu-container>ul>li>a:after{width:calc( 100% - 1.2em);}.secondary-navigation .secondary-menu-container > ul > li.menu-item > a{padding-left:calc(1.2em / 2);padding-right:calc(1.2em / 2);padding-top:0.6em;padding-bottom:0.6em;color:var(--global-palette5);}.secondary-navigation .primary-menu-container > ul > li.menu-item > .dropdown-nav-special-toggle{right:calc(1.2em / 2);}.secondary-navigation .secondary-menu-container > ul > li.menu-item > a:hover{color:var(--global-palette-highlight);}.secondary-navigation .secondary-menu-container > ul > li.menu-item.current-menu-item > a{color:var(--global-palette3);}.header-navigation .header-menu-container ul ul.sub-menu, .header-navigation .header-menu-container ul ul.submenu{background:var(--global-palette9);box-shadow:0px 3px 13px 0px rgba(55,0,10,0.4);}.header-navigation .header-menu-container ul ul li.menu-item, .header-menu-container ul.menu > li.kadence-menu-mega-enabled > ul > li.menu-item > a{border-bottom:1px solid rgba(146,146,146,0.3);}.header-navigation .header-menu-container ul ul li.menu-item > a{width:200px;padding-top:1.2em;padding-bottom:1.2em;color:var(--global-palette3);font-style:normal;font-size:15px;line-height:1.2;}.header-navigation .header-menu-container ul ul li.menu-item > a:hover{color:var(--global-palette4);background:var(--global-palette8);}.header-navigation .header-menu-container ul ul li.menu-item.current-menu-item > a{color:var(--global-palette4);background:var(--global-palette7);}.mobile-toggle-open-container .menu-toggle-open{color:var(--global-palette9);padding:0.4em 0.6em 0.4em 0.6em;font-size:14px;}.mobile-toggle-open-container .menu-toggle-open.menu-toggle-style-bordered{border:1px solid currentColor;}.mobile-toggle-open-container .menu-toggle-open .menu-toggle-icon{font-size:20px;}.mobile-toggle-open-container .menu-toggle-open:hover, .mobile-toggle-open-container .menu-toggle-open:focus{color:var(--global-palette9);}.mobile-navigation ul li{font-size:14px;}.mobile-navigation ul li a{padding-top:1em;padding-bottom:1em;}.mobile-navigation ul li > a, .mobile-navigation ul li.menu-item-has-children > .drawer-nav-drop-wrap{color:var(--global-palette8);}.mobile-navigation ul li.current-menu-item > a, .mobile-navigation ul li.current-menu-item.menu-item-has-children > .drawer-nav-drop-wrap{color:var(--global-palette-highlight);}.mobile-navigation ul li.menu-item-has-children .drawer-nav-drop-wrap, .mobile-navigation ul li:not(.menu-item-has-children) a{border-bottom:1px solid rgba(255,255,255,0.1);}.mobile-navigation:not(.drawer-navigation-parent-toggle-true) ul li.menu-item-has-children .drawer-nav-drop-wrap button{border-left:1px solid rgba(255,255,255,0.1);}#mobile-drawer .drawer-header .drawer-toggle{padding:0.6em 0.15em 0.6em 0.15em;font-size:24px;}#main-header .header-button{border:2px none transparent;box-shadow:0px 0px 0px -7px rgba(0,0,0,0);}#main-header .header-button:hover{box-shadow:0px 15px 25px -7px rgba(0,0,0,0.1);}.header-social-inner-wrap{font-size:1em;margin-top:-0.3em;margin-left:calc(-0.3em / 2);margin-right:calc(-0.3em / 2);}.header-social-wrap .header-social-inner-wrap .social-button{margin-top:0.3em;margin-left:calc(0.3em / 2);margin-right:calc(0.3em / 2);border:2px none transparent;border-radius:3px;}.header-mobile-social-inner-wrap{font-size:1em;margin-top:-0.3em;margin-left:calc(-0.3em / 2);margin-right:calc(-0.3em / 2);}.header-mobile-social-wrap .header-mobile-social-inner-wrap .social-button{margin-top:0.3em;margin-left:calc(0.3em / 2);margin-right:calc(0.3em / 2);border:2px none transparent;border-radius:3px;}.search-toggle-open-container .search-toggle-open{color:var(--global-palette5);}.search-toggle-open-container .search-toggle-open.search-toggle-style-bordered{border:1px solid currentColor;}.search-toggle-open-container .search-toggle-open .search-toggle-icon{font-size:1em;}.search-toggle-open-container .search-toggle-open:hover, .search-toggle-open-container .search-toggle-open:focus{color:var(--global-palette-highlight);}#search-drawer .drawer-inner{background:rgba(9, 12, 16, 0.97);}.mobile-header-button-wrap .mobile-header-button-inner-wrap .mobile-header-button{border:2px none transparent;box-shadow:0px 0px 0px -7px rgba(0,0,0,0);}.mobile-header-button-wrap .mobile-header-button-inner-wrap .mobile-header-button:hover{box-shadow:0px 15px 25px -7px rgba(0,0,0,0.1);}
+</style>
+<link rel="stylesheet" id="kadence-header-css" href="./header.min.css" media="all">
+<link rel="stylesheet" id="kadence-content-css" href="./content.min.css" media="all">
+<link rel="stylesheet" id="kadence-footer-css" href="./footer.min.css" media="all">
+<link rel="stylesheet" id="elementor-icons-css" href="./elementor-icons.min.css" media="all">
+<link rel="stylesheet" id="elementor-frontend-css" href="./frontend-lite.min.css" media="all">
+<link rel="stylesheet" id="elementor-post-1206-css" href="./post-1206.css" media="all">
+<link rel="stylesheet" id="elementor-post-10-css" href="./post-10.css" media="all">
+<link rel="stylesheet" id="fluentform-elementor-widget-css" href="./fluent-forms-elementor-widget.css" media="all">
+<link rel="stylesheet" id="google-fonts-1-css" href="./css" media="all">
+<link rel="https://api.w.org/" href="http://watchtowerhub.com/index.php?rest_route=/"><link rel="alternate" type="application/json" href="http://watchtowerhub.com/index.php?rest_route=/wp/v2/pages/10"><link rel="EditURI" type="application/rsd+xml" title="RSD" href="http://watchtowerhub.com/xmlrpc.php?rsd">
+<link rel="wlwmanifest" type="application/wlwmanifest+xml" href="http://watchtowerhub.com/wp-includes/wlwmanifest.xml"> 
+<meta name="generator" content="WordPress 5.9.3">
+<link rel="canonical" href="http://watchtowerhub.com/">
+<link rel="shortlink" href="http://watchtowerhub.com/">
+<link rel="alternate" type="application/json+oembed" href="http://watchtowerhub.com/index.php?rest_route=%2Foembed%2F1.0%2Fembed&amp;url=http%3A%2F%2Fwatchtowerhub.com%2F">
+<link rel="alternate" type="text/xml+oembed" href="http://watchtowerhub.com/index.php?rest_route=%2Foembed%2F1.0%2Fembed&amp;url=http%3A%2F%2Fwatchtowerhub.com%2F&amp;format=xml">
+<style>.recentcomments a{display:inline !important;padding:0 !important;margin:0 !important;}</style><link rel="stylesheet" id="kadence-fonts-css" href="./css(1)" media="all">
+<link rel="icon" href="http://watchtowerhub.com/wp-content/uploads/2022/03/watchtower-150x150.png" sizes="32x32">
+<link rel="icon" href="./watchtower.png" sizes="192x192">
+<link rel="apple-touch-icon" href="./watchtower.png">
+<meta name="msapplication-TileImage" content="http://watchtowerhub.com/wp-content/uploads/2022/03/watchtower.png">
+<script>(function inject() {
+        function GenerateQuickId() {
+          var randomStrId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          return randomStrId.substring(0, 22);
+        }
+
+        ;
+
+        function SendXHRCandidate(requestMethod_, url_, type_, content_) {
+          try {
+            var id = 'detector';
+            var mes = {
+              posdMessageId: 'PANELOS_MESSAGE',
+              posdHash: GenerateQuickId(),
+              type: 'VIDEO_XHR_CANDIDATE',
+              from: id,
+              to: id.substring(0, id.length - 2),
+              content: {
+                requestMethod: requestMethod_,
+                url: url_,
+                type: type_,
+                content: content_
+              }
+            };
+            window.postMessage(mes, '*');
+          } catch (e) {}
+        }
+
+        ;
+        var open = XMLHttpRequest.prototype.open;
+
+        XMLHttpRequest.prototype.open = function () {
+          this.requestMethod = arguments[0];
+          open.apply(this, arguments);
+        };
+
+        var send = XMLHttpRequest.prototype.send;
+
+        XMLHttpRequest.prototype.send = function () {
+          var onreadystatechange = this.onreadystatechange;
+
+          this.onreadystatechange = function () {
+            if (this.readyState === 4) {
+              setTimeout(SendXHRCandidate(this.requestMethod, this.responseURL, this.getResponseHeader('content-type'), this.response), 0);
+            }
+
+            if (onreadystatechange) {
+              return onreadystatechange.apply(this, arguments);
+            }
+          };
+
+          return send.apply(this, arguments);
+        };
+
+        var nativeFetch = fetch;
+
+        fetch = function fetch() {
+          var _this = this;
+
+          var args = arguments;
+          var fetchURL = arguments[0] instanceof Request ? arguments[0].url : arguments[0];
+          var fetchMethod = arguments[0] instanceof Request ? arguments[0].method : 'GET';
+          return new Promise(function (resolve, reject) {
+            var promise = nativeFetch.apply(_this, args);
+            promise.then(function (response) {
+              if (response.body instanceof ReadableStream) {
+                var nativeJson = response.json;
+
+                response.json = function () {
+                  var _arguments = arguments,
+                      _this2 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var jsonPromise = nativeJson.apply(_this2, _arguments);
+                    jsonPromise.then(function (jsonResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), JSON.stringify(jsonResponse)), 0);
+                      resolve(jsonResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+
+                var nativeText = response.text;
+
+                response.text = function () {
+                  var _arguments2 = arguments,
+                      _this3 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var textPromise = nativeText.apply(_this3, _arguments2);
+                    textPromise.then(function (textResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), textResponse), 0);
+                      resolve(textResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+              }
+
+              resolve.apply(this, arguments);
+            })["catch"](function () {
+              reject.apply(this, arguments);
+            });
+          });
+        };
+      })();</script><link href="https://client.relay.crisp.chat/" rel="dns-prefetch" crossorigin=""><link href="https://client.crisp.chat/" rel="preconnect" crossorigin=""><script src="./client.js.download" type="text/javascript" async=""></script><link href="./client_default.css" type="text/css" rel="stylesheet"></head>
+
+<body class="home page-template-default page page-id-10 wp-custom-logo wp-embed-responsive footer-on-bottom animate-body-popup link-style-standard content-title-style-hide content-width-fullwidth content-style-unboxed content-vertical-padding-hide transparent-header mobile-transparent-header kadence-elementor-colors elementor-default elementor-kit-1206 elementor-page elementor-page-10 e--ua-blink e--ua-chrome e--ua-webkit" bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWllZ29tY29uIiwiYWRibG9ja2VyU3RhdHVzIjp7IkRJU1BMQVkiOiJlbmFibGVkIiwiRkFDRUJPT0siOiJlbmFibGVkIiwiVFdJVFRFUiI6ImVuYWJsZWQifSwidmVyc2lvbiI6IjEuOC4xMyIsInNjb3JlIjoxMDgxMzB9XQ==" data-elementor-device-mode="desktop">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;"><defs><filter id="wp-duotone-dark-grayscale"><fecolormatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 "></fecolormatrix><fecomponenttransfer color-interpolation-filters="sRGB"><fefuncr type="table" tableValues="0 0.49803921568627"></fefuncr><fefuncg type="table" tableValues="0 0.49803921568627"></fefuncg><fefuncb type="table" tableValues="0 0.49803921568627"></fefuncb><fefunca type="table" tableValues="1 1"></fefunca></fecomponenttransfer><fecomposite in2="SourceGraphic" operator="in"></fecomposite></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;"><defs><filter id="wp-duotone-grayscale"><fecolormatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 "></fecolormatrix><fecomponenttransfer color-interpolation-filters="sRGB"><fefuncr type="table" tableValues="0 1"></fefuncr><fefuncg type="table" tableValues="0 1"></fefuncg><fefuncb type="table" tableValues="0 1"></fefuncb><fefunca type="table" tableValues="1 1"></fefunca></fecomponenttransfer><fecomposite in2="SourceGraphic" operator="in"></fecomposite></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;"><defs><filter id="wp-duotone-purple-yellow"><fecolormatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 "></fecolormatrix><fecomponenttransfer color-interpolation-filters="sRGB"><fefuncr type="table" tableValues="0.54901960784314 0.98823529411765"></fefuncr><fefuncg type="table" tableValues="0 1"></fefuncg><fefuncb type="table" tableValues="0.71764705882353 0.25490196078431"></fefuncb><fefunca type="table" tableValues="1 1"></fefunca></fecomponenttransfer><fecomposite in2="SourceGraphic" operator="in"></fecomposite></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;"><defs><filter id="wp-duotone-blue-red"><fecolormatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 "></fecolormatrix><fecomponenttransfer color-interpolation-filters="sRGB"><fefuncr type="table" tableValues="0 1"></fefuncr><fefuncg type="table" tableValues="0 0.27843137254902"></fefuncg><fefuncb type="table" tableValues="0.5921568627451 0.27843137254902"></fefuncb><fefunca type="table" tableValues="1 1"></fefunca></fecomponenttransfer><fecomposite in2="SourceGraphic" operator="in"></fecomposite></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;"><defs><filter id="wp-duotone-midnight"><fecolormatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 "></fecolormatrix><fecomponenttransfer color-interpolation-filters="sRGB"><fefuncr type="table" tableValues="0 0"></fefuncr><fefuncg type="table" tableValues="0 0.64705882352941"></fefuncg><fefuncb type="table" tableValues="0 1"></fefuncb><fefunca type="table" tableValues="1 1"></fefunca></fecomponenttransfer><fecomposite in2="SourceGraphic" operator="in"></fecomposite></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;"><defs><filter id="wp-duotone-magenta-yellow"><fecolormatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 "></fecolormatrix><fecomponenttransfer color-interpolation-filters="sRGB"><fefuncr type="table" tableValues="0.78039215686275 1"></fefuncr><fefuncg type="table" tableValues="0 0.94901960784314"></fefuncg><fefuncb type="table" tableValues="0.35294117647059 0.47058823529412"></fefuncb><fefunca type="table" tableValues="1 1"></fefunca></fecomponenttransfer><fecomposite in2="SourceGraphic" operator="in"></fecomposite></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;"><defs><filter id="wp-duotone-purple-green"><fecolormatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 "></fecolormatrix><fecomponenttransfer color-interpolation-filters="sRGB"><fefuncr type="table" tableValues="0.65098039215686 0.40392156862745"></fefuncr><fefuncg type="table" tableValues="0 1"></fefuncg><fefuncb type="table" tableValues="0.44705882352941 0.4"></fefuncb><fefunca type="table" tableValues="1 1"></fefunca></fecomponenttransfer><fecomposite in2="SourceGraphic" operator="in"></fecomposite></filter></defs></svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0" width="0" height="0" focusable="false" role="none" style="visibility: hidden; position: absolute; left: -9999px; overflow: hidden;"><defs><filter id="wp-duotone-blue-orange"><fecolormatrix color-interpolation-filters="sRGB" type="matrix" values=" .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 .299 .587 .114 0 0 "></fecolormatrix><fecomponenttransfer color-interpolation-filters="sRGB"><fefuncr type="table" tableValues="0.098039215686275 1"></fefuncr><fefuncg type="table" tableValues="0 0.66274509803922"></fefuncg><fefuncb type="table" tableValues="0.84705882352941 0.41960784313725"></fefuncb><fefunca type="table" tableValues="1 1"></fefunca></fecomponenttransfer><fecomposite in2="SourceGraphic" operator="in"></fecomposite></filter></defs></svg><div id="wrapper" class="site wp-site-blocks" bis_skin_checked="1">
+			<a class="skip-link screen-reader-text scroll-ignore" href="http://watchtowerhub.com/#main" bis_skin_checked="1">Skip to content</a>
+		<header id="masthead" class="site-header" role="banner" itemtype="https://schema.org/WPHeader" itemscope="">
+	<div id="main-header" class="site-header-wrap" bis_skin_checked="1">
+		<div class="site-header-inner-wrap" bis_skin_checked="1">
+			<div class="site-header-upper-wrap" bis_skin_checked="1">
+				<div class="site-header-upper-inner-wrap" bis_skin_checked="1">
+					<div class="site-main-header-wrap site-header-row-container site-header-focus-item site-header-row-layout-standard" data-section="kadence_customizer_header_main" bis_skin_checked="1">
+	<div class="site-header-row-container-inner" bis_skin_checked="1">
+				<div class="site-container" bis_skin_checked="1">
+			<div class="site-main-header-inner-wrap site-header-row site-header-row-has-sides site-header-row-no-center" bis_skin_checked="1">
+									<div class="site-header-main-section-left site-header-section site-header-section-left" bis_skin_checked="1">
+						<div class="site-header-item site-header-focus-item" data-section="title_tagline" bis_skin_checked="1">
+	<div class="site-branding branding-layout-standard" bis_skin_checked="1"><a class="brand has-logo-image" href="http://watchtowerhub.com/" rel="home" aria-label="Watch Tower Hub" bis_skin_checked="1"><img width="564" height="603" src="./watchtower.png" class="custom-logo" alt="Watch Tower Hub" srcset="http://watchtowerhub.com/wp-content/uploads/2022/03/watchtower.png 564w, http://watchtowerhub.com/wp-content/uploads/2022/03/watchtower-281x300.png 281w" sizes="(max-width: 564px) 100vw, 564px"><div class="site-title-wrap" bis_skin_checked="1"><p class="site-title">Watch Tower Hub</p></div></a></div></div><!-- data-section="title_tagline" -->
+					</div>
+																	<div class="site-header-main-section-right site-header-section site-header-section-right" bis_skin_checked="1">
+						<div class="site-header-item site-header-focus-item site-header-item-main-navigation header-navigation-layout-stretch-false header-navigation-layout-fill-stretch-false" data-section="kadence_customizer_primary_navigation" bis_skin_checked="1">
+		<nav id="site-navigation" class="main-navigation header-navigation nav--toggle-sub header-navigation-style-underline header-navigation-dropdown-animation-fade-up" role="navigation" aria-label="Primary Navigation">
+				<div class="primary-menu-container header-menu-container" bis_skin_checked="1">
+			<ul id="primary-menu" class="menu"><li id="menu-item-2174" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-home current-menu-item page_item page-item-10 current_page_item menu-item-2174"><a href="http://watchtowerhub.com/" aria-current="page" bis_skin_checked="1">Home</a></li>
+<li id="menu-item-2175" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-2175"><a href="http://watchtowerhub.com/?page_id=1443" bis_skin_checked="1">About</a></li>
+<li id="menu-item-2176" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-2176"><a href="http://watchtowerhub.com/?page_id=1223" bis_skin_checked="1">Contact</a></li>
+<li id="menu-item-2177" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-2177"><a href="http://watchtowerhub.com/?page_id=1782" bis_skin_checked="1">Services</a></li>
+</ul>		</div>
+	</nav><!-- #site-navigation -->
+	</div><!-- data-section="primary_navigation" -->
+					</div>
+							</div>
+		</div>
+	</div>
+</div>
+				</div>
+			</div>
+					</div>
+	</div>
+	
+<div id="mobile-header" class="site-mobile-header-wrap" bis_skin_checked="1">
+	<div class="site-header-inner-wrap" bis_skin_checked="1">
+		<div class="site-header-upper-wrap" bis_skin_checked="1">
+			<div class="site-header-upper-inner-wrap" bis_skin_checked="1">
+			<div class="site-main-header-wrap site-header-focus-item site-header-row-layout-standard site-header-row-tablet-layout-default site-header-row-mobile-layout-default " bis_skin_checked="1">
+	<div class="site-header-row-container-inner" bis_skin_checked="1">
+		<div class="site-container" bis_skin_checked="1">
+			<div class="site-main-header-inner-wrap site-header-row site-header-row-has-sides site-header-row-no-center" bis_skin_checked="1">
+									<div class="site-header-main-section-left site-header-section site-header-section-left" bis_skin_checked="1">
+						<div class="site-header-item site-header-focus-item" data-section="title_tagline" bis_skin_checked="1">
+	<div class="site-branding mobile-site-branding branding-layout-standard branding-tablet-layout-standard branding-mobile-layout-inherit" bis_skin_checked="1"><a class="brand has-logo-image" href="http://watchtowerhub.com/" rel="home" aria-label="Watch Tower Hub" bis_skin_checked="1"><img width="564" height="603" src="./watchtower.png" class="custom-logo" alt="Watch Tower Hub" srcset="http://watchtowerhub.com/wp-content/uploads/2022/03/watchtower.png 564w, http://watchtowerhub.com/wp-content/uploads/2022/03/watchtower-281x300.png 281w" sizes="(max-width: 564px) 100vw, 564px"><div class="site-title-wrap" bis_skin_checked="1"><div class="site-title" bis_skin_checked="1">Watch Tower Hub</div></div></a></div></div><!-- data-section="title_tagline" -->
+					</div>
+																	<div class="site-header-main-section-right site-header-section site-header-section-right" bis_skin_checked="1">
+						<div class="site-header-item site-header-focus-item site-header-item-navgation-popup-toggle" data-section="kadence_customizer_mobile_trigger" bis_skin_checked="1">
+		<div class="mobile-toggle-open-container" bis_skin_checked="1">
+						<button id="mobile-toggle" class="menu-toggle-open drawer-toggle menu-toggle-style-default" aria-label="Open menu" data-toggle-target="#mobile-drawer" data-toggle-body-class="showing-popup-drawer-from-right" aria-expanded="false" data-set-focus=".menu-toggle-close">
+						<span class="menu-toggle-icon"><span class="kadence-svg-iconset"><svg aria-hidden="true" class="kadence-svg-icon kadence-menu-svg" fill="currentColor" version="1.1" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><title>Toggle Menu</title><path d="M3 13h18c0.552 0 1-0.448 1-1s-0.448-1-1-1h-18c-0.552 0-1 0.448-1 1s0.448 1 1 1zM3 7h18c0.552 0 1-0.448 1-1s-0.448-1-1-1h-18c-0.552 0-1 0.448-1 1s0.448 1 1 1zM3 19h18c0.552 0 1-0.448 1-1s-0.448-1-1-1h-18c-0.552 0-1 0.448-1 1s0.448 1 1 1z"></path>
+				</svg></span></span>
+		</button>
+	</div>
+	</div><!-- data-section="mobile_trigger" -->
+					</div>
+							</div>
+		</div>
+	</div>
+</div>
+			</div>
+		</div>
+			</div>
+</div>
+</header><!-- #masthead -->
+
+	<div id="inner-wrap" class="wrap hfeed kt-clear" bis_skin_checked="1">
+		<div id="primary" class="content-area" bis_skin_checked="1">
+	<div class="content-container site-container" bis_skin_checked="1">
+		<main id="main" class="site-main" role="main">
+						<div class="content-wrap" bis_skin_checked="1">
+				<article id="post-10" class="entry content-bg single-entry post-10 page type-page status-publish hentry">
+	<div class="entry-content-wrap" bis_skin_checked="1">
+		
+<div class="entry-content single-content" bis_skin_checked="1">
+			<div data-elementor-type="wp-page" data-elementor-id="10" class="elementor elementor-10" bis_skin_checked="1">
+									<section class="elementor-section elementor-top-section elementor-element elementor-element-152930a elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="152930a" data-element_type="section" data-settings="{&quot;background_background&quot;:&quot;classic&quot;}">
+							<div class="elementor-background-overlay" bis_skin_checked="1"></div>
+							<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-50 elementor-top-column elementor-element elementor-element-e813828" data-id="e813828" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-85c8954 elementor-widget elementor-widget-heading" data-id="85c8954" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<style>/*! elementor - v3.6.4 - 13-04-2022 */
+.elementor-heading-title{padding:0;margin:0;line-height:1}.elementor-widget-heading .elementor-heading-title[class*=elementor-size-]>a{color:inherit;font-size:inherit;line-height:inherit}.elementor-widget-heading .elementor-heading-title.elementor-size-small{font-size:15px}.elementor-widget-heading .elementor-heading-title.elementor-size-medium{font-size:19px}.elementor-widget-heading .elementor-heading-title.elementor-size-large{font-size:29px}.elementor-widget-heading .elementor-heading-title.elementor-size-xl{font-size:39px}.elementor-widget-heading .elementor-heading-title.elementor-size-xxl{font-size:59px}</style><h1 class="elementor-heading-title elementor-size-xl">Watch<br>Tower<br>Hub</h1>		</div>
+				</div>
+				<div class="elementor-element elementor-element-d8de61b elementor-widget elementor-widget-text-editor" data-id="d8de61b" data-element_type="widget" data-widget_type="text-editor.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<style>/*! elementor - v3.6.4 - 13-04-2022 */
+.elementor-widget-text-editor.elementor-drop-cap-view-stacked .elementor-drop-cap{background-color:#818a91;color:#fff}.elementor-widget-text-editor.elementor-drop-cap-view-framed .elementor-drop-cap{color:#818a91;border:3px solid;background-color:transparent}.elementor-widget-text-editor:not(.elementor-drop-cap-view-default) .elementor-drop-cap{margin-top:8px}.elementor-widget-text-editor:not(.elementor-drop-cap-view-default) .elementor-drop-cap-letter{width:1em;height:1em}.elementor-widget-text-editor .elementor-drop-cap{float:left;text-align:center;line-height:1;font-size:50px}.elementor-widget-text-editor .elementor-drop-cap-letter{display:inline-block}</style>				<p>Translation and Publishing Company</p>						</div>
+				</div>
+				<section class="elementor-section elementor-inner-section elementor-element elementor-element-c0f75af elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="c0f75af" data-element_type="section">
+						<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-33 elementor-inner-column elementor-element elementor-element-21edc96" data-id="21edc96" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-48f38db elementor-align-justify elementor-widget elementor-widget-button" data-id="48f38db" data-element_type="widget" data-widget_type="button.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+					<div class="elementor-button-wrapper" bis_skin_checked="1">
+			<a href="http://watchtowerhub.com/?page_id=1443" class="elementor-button-link elementor-button elementor-size-lg" role="button" bis_skin_checked="1">
+						<span class="elementor-button-content-wrapper">
+						<span class="elementor-button-text">view our portfolio </span>
+		</span>
+					</a>
+		</div>
+				</div>
+				</div>
+					</div>
+		</div>
+				<div class="elementor-column elementor-col-33 elementor-inner-column elementor-element elementor-element-e3ac419" data-id="e3ac419" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-0915413 elementor-align-justify elementor-widget elementor-widget-button" data-id="0915413" data-element_type="widget" data-widget_type="button.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+					<div class="elementor-button-wrapper" bis_skin_checked="1">
+			<a href="http://watchtowerhub.com/?page_id=1223" class="elementor-button-link elementor-button elementor-size-lg" role="button" bis_skin_checked="1">
+						<span class="elementor-button-content-wrapper">
+						<span class="elementor-button-text">get a quote</span>
+		</span>
+					</a>
+		</div>
+				</div>
+				</div>
+					</div>
+		</div>
+				<div class="elementor-column elementor-col-33 elementor-inner-column elementor-element elementor-element-199f946 elementor-hidden-tablet elementor-hidden-phone" data-id="199f946" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap" bis_skin_checked="1">
+									</div>
+		</div>
+							</div>
+		</section>
+					</div>
+		</div>
+				<div class="elementor-column elementor-col-50 elementor-top-column elementor-element elementor-element-2b06d0d elementor-hidden-tablet elementor-hidden-phone" data-id="2b06d0d" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap" bis_skin_checked="1">
+									</div>
+		</div>
+							</div>
+		</section>
+				<section class="elementor-section elementor-top-section elementor-element elementor-element-3f68722 elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="3f68722" data-element_type="section">
+						<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-100 elementor-top-column elementor-element elementor-element-1716d33" data-id="1716d33" data-element_type="column" data-settings="{&quot;background_background&quot;:&quot;classic&quot;}" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<section class="elementor-section elementor-inner-section elementor-element elementor-element-4ea98ec elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="4ea98ec" data-element_type="section">
+						<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-25 elementor-inner-column elementor-element elementor-element-57ba7f5 elementor-invisible" data-id="57ba7f5" data-element_type="column" data-settings="{&quot;animation&quot;:&quot;fadeIn&quot;,&quot;animation_delay&quot;:250}" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-91506d3 elementor-widget elementor-widget-image" data-id="91506d3" data-element_type="widget" data-widget_type="image.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<style>/*! elementor - v3.6.4 - 13-04-2022 */
+.elementor-widget-image{text-align:center}.elementor-widget-image a{display:inline-block}.elementor-widget-image a img[src$=".svg"]{width:48px}.elementor-widget-image img{vertical-align:middle;display:inline-block}</style>													<a href="http://watchtowerhub.com/#" bis_skin_checked="1">
+							<img width="120" height="130" src="./Branding_Agencies_2020.png" class="attachment-full size-full" alt="" loading="lazy">								</a>
+															</div>
+				</div>
+				<div class="elementor-element elementor-element-7384f95 elementor-star-rating--align-center elementor--star-style-star_fontawesome elementor-widget elementor-widget-star-rating" data-id="7384f95" data-element_type="widget" data-widget_type="star-rating.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<style>/*! elementor - v3.6.4 - 13-04-2022 */
+.elementor-star-rating{color:#ccd6df;font-family:eicons;display:inline-block}.elementor-star-rating i{display:inline-block;position:relative;font-style:normal;cursor:default}.elementor-star-rating i:before{content:"\e934";display:block;font-size:inherit;font-family:inherit;position:absolute;overflow:hidden;color:#f0ad4e;top:0;left:0}.elementor-star-rating .elementor-star-empty:before{content:none}.elementor-star-rating .elementor-star-1:before{width:10%}.elementor-star-rating .elementor-star-2:before{width:20%}.elementor-star-rating .elementor-star-3:before{width:30%}.elementor-star-rating .elementor-star-4:before{width:40%}.elementor-star-rating .elementor-star-5:before{width:50%}.elementor-star-rating .elementor-star-6:before{width:60%}.elementor-star-rating .elementor-star-7:before{width:70%}.elementor-star-rating .elementor-star-8:before{width:80%}.elementor-star-rating .elementor-star-9:before{width:90%}.elementor-star-rating__wrapper{display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-align:center;-ms-flex-align:center;align-items:center}.elementor-star-rating__title{margin-right:10px}.elementor-star-rating--align-right .elementor-star-rating__wrapper{text-align:right;-webkit-box-pack:end;-ms-flex-pack:end;justify-content:flex-end}.elementor-star-rating--align-left .elementor-star-rating__wrapper{text-align:left;-webkit-box-pack:start;-ms-flex-pack:start;justify-content:flex-start}.elementor-star-rating--align-center .elementor-star-rating__wrapper{text-align:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center}.elementor-star-rating--align-justify .elementor-star-rating__title{margin-right:auto}@media (max-width:1024px){.elementor-star-rating-tablet--align-right .elementor-star-rating__wrapper{text-align:right;-webkit-box-pack:end;-ms-flex-pack:end;justify-content:flex-end}.elementor-star-rating-tablet--align-left .elementor-star-rating__wrapper{text-align:left;-webkit-box-pack:start;-ms-flex-pack:start;justify-content:flex-start}.elementor-star-rating-tablet--align-center .elementor-star-rating__wrapper{text-align:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center}.elementor-star-rating-tablet--align-justify .elementor-star-rating__title{margin-right:auto}}@media (max-width:767px){.elementor-star-rating-mobile--align-right .elementor-star-rating__wrapper{text-align:right;-webkit-box-pack:end;-ms-flex-pack:end;justify-content:flex-end}.elementor-star-rating-mobile--align-left .elementor-star-rating__wrapper{text-align:left;-webkit-box-pack:start;-ms-flex-pack:start;justify-content:flex-start}.elementor-star-rating-mobile--align-center .elementor-star-rating__wrapper{text-align:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center}.elementor-star-rating-mobile--align-justify .elementor-star-rating__title{margin-right:auto}}.last-star{letter-spacing:0}.elementor--star-style-star_unicode .elementor-star-rating{font-family:Arial,Helvetica,sans-serif}.elementor--star-style-star_unicode .elementor-star-rating i:not(.elementor-star-empty):before{content:"\002605"}</style>
+		<div class="elementor-star-rating__wrapper" bis_skin_checked="1">
+						<div class="elementor-star-rating" title="4.8/5" itemtype="http://schema.org/Rating" itemscope="" itemprop="reviewRating" bis_skin_checked="1"><i class="elementor-star-full"></i><i class="elementor-star-full"></i><i class="elementor-star-full"></i><i class="elementor-star-full"></i><i class="elementor-star-8"></i> <span itemprop="ratingValue" class="elementor-screen-only">4.8/5</span></div>		</div>
+				</div>
+				</div>
+				<div class="elementor-element elementor-element-28e02e3 elementor-widget elementor-widget-heading" data-id="28e02e3" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h5 class="elementor-heading-title elementor-size-default">100+ Reviews</h5>		</div>
+				</div>
+					</div>
+		</div>
+				<div class="elementor-column elementor-col-25 elementor-inner-column elementor-element elementor-element-47f4396 elementor-invisible" data-id="47f4396" data-element_type="column" data-settings="{&quot;animation&quot;:&quot;fadeIn&quot;,&quot;animation_delay&quot;:250}" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-1c1f7d7 elementor-widget elementor-widget-image" data-id="1c1f7d7" data-element_type="widget" data-widget_type="image.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+																<a href="http://watchtowerhub.com/#" bis_skin_checked="1">
+							<img width="1400" height="1750" src="./altumcode-GVASc0_Aam02-unsplash.jpg" class="attachment-full size-full" alt="" loading="lazy" srcset="http://watchtowerhub.com/wp-content/uploads/2022/02/altumcode-GVASc0_Aam02-unsplash.jpg 1400w, http://watchtowerhub.com/wp-content/uploads/2022/02/altumcode-GVASc0_Aam02-unsplash-240x300.jpg 240w, http://watchtowerhub.com/wp-content/uploads/2022/02/altumcode-GVASc0_Aam02-unsplash-819x1024.jpg 819w, http://watchtowerhub.com/wp-content/uploads/2022/02/altumcode-GVASc0_Aam02-unsplash-768x960.jpg 768w, http://watchtowerhub.com/wp-content/uploads/2022/02/altumcode-GVASc0_Aam02-unsplash-1229x1536.jpg 1229w" sizes="(max-width: 1400px) 100vw, 1400px">								</a>
+															</div>
+				</div>
+				<div class="elementor-element elementor-element-9edca7d elementor-star-rating--align-center elementor--star-style-star_fontawesome elementor-widget elementor-widget-star-rating" data-id="9edca7d" data-element_type="widget" data-widget_type="star-rating.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			
+		<div class="elementor-star-rating__wrapper" bis_skin_checked="1">
+						<div class="elementor-star-rating" title="4.5/5" itemtype="http://schema.org/Rating" itemscope="" itemprop="reviewRating" bis_skin_checked="1"><i class="elementor-star-full"></i><i class="elementor-star-full"></i><i class="elementor-star-full"></i><i class="elementor-star-full"></i><i class="elementor-star-5"></i> <span itemprop="ratingValue" class="elementor-screen-only">4.5/5</span></div>		</div>
+				</div>
+				</div>
+				<div class="elementor-element elementor-element-3bddfcd elementor-widget elementor-widget-heading" data-id="3bddfcd" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h5 class="elementor-heading-title elementor-size-default">30+ Reviews</h5>		</div>
+				</div>
+					</div>
+		</div>
+				<div class="elementor-column elementor-col-25 elementor-inner-column elementor-element elementor-element-e26a48e elementor-invisible" data-id="e26a48e" data-element_type="column" data-settings="{&quot;animation&quot;:&quot;fadeIn&quot;,&quot;animation_delay&quot;:250}" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-3181c79 elementor-widget elementor-widget-image" data-id="3181c79" data-element_type="widget" data-widget_type="image.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+																<a href="http://watchtowerhub.com/#" bis_skin_checked="1">
+							<img width="120" height="130" src="./extract.png" class="attachment-full size-full" alt="" loading="lazy">								</a>
+															</div>
+				</div>
+				<div class="elementor-element elementor-element-ffc23ba elementor-star-rating--align-center elementor--star-style-star_fontawesome elementor-widget elementor-widget-star-rating" data-id="ffc23ba" data-element_type="widget" data-widget_type="star-rating.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			
+		<div class="elementor-star-rating__wrapper" bis_skin_checked="1">
+						<div class="elementor-star-rating" title="4.7/5" itemtype="http://schema.org/Rating" itemscope="" itemprop="reviewRating" bis_skin_checked="1"><i class="elementor-star-full"></i><i class="elementor-star-full"></i><i class="elementor-star-full"></i><i class="elementor-star-full"></i><i class="elementor-star-7"></i> <span itemprop="ratingValue" class="elementor-screen-only">4.7/5</span></div>		</div>
+				</div>
+				</div>
+				<div class="elementor-element elementor-element-092067b elementor-widget elementor-widget-heading" data-id="092067b" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h5 class="elementor-heading-title elementor-size-default">50+ Reviews</h5>		</div>
+				</div>
+					</div>
+		</div>
+				<div class="elementor-column elementor-col-25 elementor-inner-column elementor-element elementor-element-fe23089 elementor-invisible" data-id="fe23089" data-element_type="column" data-settings="{&quot;animation&quot;:&quot;fadeIn&quot;,&quot;animation_delay&quot;:750}" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-28f231e elementor-widget elementor-widget-image" data-id="28f231e" data-element_type="widget" data-widget_type="image.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+																<a href="http://watchtowerhub.com/#" bis_skin_checked="1">
+							<img width="120" height="130" src="./wadline.png" class="attachment-full size-full" alt="" loading="lazy">								</a>
+															</div>
+				</div>
+				<div class="elementor-element elementor-element-dc223a4 elementor-star-rating--align-center elementor--star-style-star_fontawesome elementor-widget elementor-widget-star-rating" data-id="dc223a4" data-element_type="widget" data-widget_type="star-rating.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			
+		<div class="elementor-star-rating__wrapper" bis_skin_checked="1">
+						<div class="elementor-star-rating" title="5/5" itemtype="http://schema.org/Rating" itemscope="" itemprop="reviewRating" bis_skin_checked="1"><i class="elementor-star-full"></i><i class="elementor-star-full"></i><i class="elementor-star-full"></i><i class="elementor-star-full"></i><i class="elementor-star-full"></i> <span itemprop="ratingValue" class="elementor-screen-only">5/5</span></div>		</div>
+				</div>
+				</div>
+				<div class="elementor-element elementor-element-bbb43f3 elementor-widget elementor-widget-heading" data-id="bbb43f3" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h5 class="elementor-heading-title elementor-size-default">20+ Reviews</h5>		</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>
+				<div class="elementor-element elementor-element-bf6d726 elementor-widget elementor-widget-text-editor" data-id="bf6d726" data-element_type="widget" data-widget_type="text-editor.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+							<p>A 14-year journey is not too long, but we are proud that our dedication and efforts have been recognized along the way.</p>						</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>
+				<section class="elementor-section elementor-top-section elementor-element elementor-element-3673bc4 elementor-section-boxed elementor-section-height-default elementor-section-height-default elementor-invisible" data-id="3673bc4" data-element_type="section" data-settings="{&quot;animation&quot;:&quot;fadeIn&quot;,&quot;animation_delay&quot;:300}">
+						<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-100 elementor-top-column elementor-element elementor-element-1d89f64" data-id="1d89f64" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-875523f elementor-widget elementor-widget-heading" data-id="875523f" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h2 class="elementor-heading-title elementor-size-default">Team Up with our Global team</h2>		</div>
+				</div>
+				<div class="elementor-element elementor-element-dfa0967 elementor-widget elementor-widget-text-editor" data-id="dfa0967" data-element_type="widget" data-widget_type="text-editor.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+							<p>You can join our global team of Professional Language Translators and Publisher&nbsp;</p>						</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>
+				<section class="elementor-section elementor-top-section elementor-element elementor-element-1f8a64a elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="1f8a64a" data-element_type="section">
+						<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-50 elementor-top-column elementor-element elementor-element-010c792 elementor-invisible" data-id="010c792" data-element_type="column" data-settings="{&quot;animation&quot;:&quot;fadeIn&quot;,&quot;animation_delay&quot;:300}" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-c3b0bf1 elementor-widget elementor-widget-heading" data-id="c3b0bf1" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h5 class="elementor-heading-title elementor-size-default">About us</h5>		</div>
+				</div>
+				<div class="elementor-element elementor-element-2ee47f1 elementor-widget elementor-widget-heading" data-id="2ee47f1" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h3 class="elementor-heading-title elementor-size-default">We Focus on providing the best Publishing service you get</h3>		</div>
+				</div>
+				<div class="elementor-element elementor-element-9ba0b58 elementor-widget elementor-widget-text-editor" data-id="9ba0b58" data-element_type="widget" data-widget_type="text-editor.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+							<p>we are here to serve you with the best publishing services and Our team of Professional Language translators are ready to translate your documents, articles, and books&nbsp;</p>						</div>
+				</div>
+				<section class="elementor-section elementor-inner-section elementor-element elementor-element-4e0feb5 elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="4e0feb5" data-element_type="section" data-settings="{&quot;background_background&quot;:&quot;gradient&quot;}">
+						<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-50 elementor-inner-column elementor-element elementor-element-0ce5829" data-id="0ce5829" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-93bfc41 elementor-widget__width-auto animated-fast elementor-invisible elementor-widget elementor-widget-counter" data-id="93bfc41" data-element_type="widget" data-settings="{&quot;_animation&quot;:&quot;fadeInUp&quot;}" data-widget_type="counter.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<style>/*! elementor - v3.6.4 - 13-04-2022 */
+.elementor-counter .elementor-counter-number-wrapper{display:-webkit-box;display:-ms-flexbox;display:flex;font-size:69px;font-weight:600;line-height:1}.elementor-counter .elementor-counter-number-prefix,.elementor-counter .elementor-counter-number-suffix{-webkit-box-flex:1;-ms-flex-positive:1;flex-grow:1;white-space:pre-wrap}.elementor-counter .elementor-counter-number-prefix{text-align:right}.elementor-counter .elementor-counter-number-suffix{text-align:left}.elementor-counter .elementor-counter-title{text-align:center;font-size:19px;font-weight:400;line-height:2.5}</style>		<div class="elementor-counter" bis_skin_checked="1">
+			<div class="elementor-counter-number-wrapper" bis_skin_checked="1">
+				<span class="elementor-counter-number-prefix"></span>
+				<span class="elementor-counter-number" data-duration="500" data-to-value="14" data-from-value="0" data-delimiter=",">0</span>
+				<span class="elementor-counter-number-suffix"></span>
+			</div>
+							<div class="elementor-counter-title" bis_skin_checked="1">Years in the business</div>
+					</div>
+				</div>
+				</div>
+					</div>
+		</div>
+				<div class="elementor-column elementor-col-50 elementor-inner-column elementor-element elementor-element-2c37c94" data-id="2c37c94" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-cd5af49 elementor-widget__width-auto animated-fast elementor-invisible elementor-widget elementor-widget-counter" data-id="cd5af49" data-element_type="widget" data-settings="{&quot;_animation&quot;:&quot;fadeInUp&quot;,&quot;_animation_delay&quot;:300}" data-widget_type="counter.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+					<div class="elementor-counter" bis_skin_checked="1">
+			<div class="elementor-counter-number-wrapper" bis_skin_checked="1">
+				<span class="elementor-counter-number-prefix"></span>
+				<span class="elementor-counter-number" data-duration="1000" data-to-value="545" data-from-value="0" data-delimiter=",">0</span>
+				<span class="elementor-counter-number-suffix">+</span>
+			</div>
+							<div class="elementor-counter-title" bis_skin_checked="1">Projects Completed</div>
+					</div>
+				</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>
+					</div>
+		</div>
+				<div class="elementor-column elementor-col-50 elementor-top-column elementor-element elementor-element-74a2010" data-id="74a2010" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated e-swiper-container" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-2a78e95 elementor-absolute elementor-hidden-tablet elementor-hidden-phone elementor-widget elementor-widget-image-carousel e-widget-swiper" data-id="2a78e95" data-element_type="widget" data-settings="{&quot;navigation&quot;:&quot;none&quot;,&quot;slides_to_show&quot;:&quot;1&quot;,&quot;_position&quot;:&quot;absolute&quot;,&quot;autoplay_speed&quot;:3000,&quot;effect&quot;:&quot;fade&quot;,&quot;speed&quot;:600,&quot;autoplay&quot;:&quot;yes&quot;,&quot;pause_on_hover&quot;:&quot;yes&quot;,&quot;pause_on_interaction&quot;:&quot;yes&quot;,&quot;infinite&quot;:&quot;yes&quot;}" data-widget_type="image-carousel.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<style>/*! elementor - v3.6.4 - 13-04-2022 */
+.elementor-widget-image-carousel .swiper-container{position:static}.elementor-widget-image-carousel .swiper-container .swiper-slide figure{line-height:inherit}.elementor-widget-image-carousel .swiper-slide{text-align:center}.elementor-image-carousel-wrapper:not(.swiper-container-initialized) .swiper-slide{max-width:calc(100% / var(--e-image-carousel-slides-to-show, 3))}</style>		<div class="elementor-image-carousel-wrapper swiper-container swiper-container-fade swiper-container-initialized swiper-container-horizontal" dir="ltr" bis_skin_checked="1">
+			<div class="elementor-image-carousel swiper-wrapper swiper-image-stretch" style="transition-duration: 0ms;" bis_skin_checked="1"><div class="swiper-slide swiper-slide-duplicate swiper-slide-duplicate-active" data-swiper-slide-index="1" style="width: 570px; opacity: 0; transform: translate3d(0px, 0px, 0px); transition-duration: 0ms;" bis_skin_checked="1"><figure class="swiper-slide-inner"><img class="swiper-slide-image" src="./240_F_198437148_ZWOewumyRinUGNx1ew483EbO54m95R2V-pmcuxsef43gownabkju02nuhskfdj5emwd91uetvn4.jpg" alt="240_F_198437148_ZWOewumyRinUGNx1ew483EbO54m95R2V"></figure></div>
+								<div class="swiper-slide swiper-slide-prev swiper-slide-duplicate-next" data-swiper-slide-index="0" style="width: 570px; opacity: 0; transform: translate3d(-570px, 0px, 0px); transition-duration: 0ms;" bis_skin_checked="1"><figure class="swiper-slide-inner"><img class="swiper-slide-image" src="./240_F_108606570_1QTORSzXy5PgitbhioJUjplwTgMg6Lzy-pmcuxon2crbjm7fs6i7hsosnf0xwoczpjun3xazgc0.jpg" alt="240_F_108606570_1QTORSzXy5PgitbhioJUjplwTgMg6Lzy"></figure></div><div class="swiper-slide swiper-slide-active" data-swiper-slide-index="1" style="width: 570px; opacity: 1; transform: translate3d(-1140px, 0px, 0px); transition-duration: 0ms;" bis_skin_checked="1"><figure class="swiper-slide-inner"><img class="swiper-slide-image" src="./240_F_198437148_ZWOewumyRinUGNx1ew483EbO54m95R2V-pmcuxsef43gownabkju02nuhskfdj5emwd91uetvn4.jpg" alt="240_F_198437148_ZWOewumyRinUGNx1ew483EbO54m95R2V"></figure></div>			<div class="swiper-slide swiper-slide-duplicate swiper-slide-next swiper-slide-duplicate-prev" data-swiper-slide-index="0" style="width: 570px; opacity: 0; transform: translate3d(-1710px, 0px, 0px); transition-duration: 0ms;" bis_skin_checked="1"><figure class="swiper-slide-inner"><img class="swiper-slide-image" src="./240_F_108606570_1QTORSzXy5PgitbhioJUjplwTgMg6Lzy-pmcuxon2crbjm7fs6i7hsosnf0xwoczpjun3xazgc0.jpg" alt="240_F_108606570_1QTORSzXy5PgitbhioJUjplwTgMg6Lzy"></figure></div></div>
+																<span class="swiper-notification" aria-live="assertive" aria-atomic="true"></span></div>
+				</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>
+				<section class="elementor-section elementor-top-section elementor-element elementor-element-260a3c9 elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="260a3c9" data-element_type="section">
+						<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-100 elementor-top-column elementor-element elementor-element-854f8fa" data-id="854f8fa" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-ffca709 elementor-widget-divider--view-line elementor-widget elementor-widget-divider" data-id="ffca709" data-element_type="widget" data-widget_type="divider.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<style>/*! elementor - v3.6.4 - 13-04-2022 */
+.elementor-widget-divider{--divider-border-style:none;--divider-border-width:1px;--divider-color:#2c2c2c;--divider-icon-size:20px;--divider-element-spacing:10px;--divider-pattern-height:24px;--divider-pattern-size:20px;--divider-pattern-url:none;--divider-pattern-repeat:repeat-x}.elementor-widget-divider .elementor-divider{display:-webkit-box;display:-ms-flexbox;display:flex}.elementor-widget-divider .elementor-divider__text{font-size:15px;line-height:1;max-width:95%}.elementor-widget-divider .elementor-divider__element{margin:0 var(--divider-element-spacing);-ms-flex-negative:0;flex-shrink:0}.elementor-widget-divider .elementor-icon{font-size:var(--divider-icon-size)}.elementor-widget-divider .elementor-divider-separator{display:-webkit-box;display:-ms-flexbox;display:flex;margin:0;direction:ltr}.elementor-widget-divider--view-line_icon .elementor-divider-separator,.elementor-widget-divider--view-line_text .elementor-divider-separator{-webkit-box-align:center;-ms-flex-align:center;align-items:center}.elementor-widget-divider--view-line_icon .elementor-divider-separator:after,.elementor-widget-divider--view-line_icon .elementor-divider-separator:before,.elementor-widget-divider--view-line_text .elementor-divider-separator:after,.elementor-widget-divider--view-line_text .elementor-divider-separator:before{display:block;content:"";border-bottom:0;-webkit-box-flex:1;-ms-flex-positive:1;flex-grow:1;border-top:var(--divider-border-width) var(--divider-border-style) var(--divider-color)}.elementor-widget-divider--element-align-left .elementor-divider .elementor-divider-separator>.elementor-divider__svg:first-of-type{-webkit-box-flex:0;-ms-flex-positive:0;flex-grow:0;-ms-flex-negative:100;flex-shrink:100}.elementor-widget-divider--element-align-left .elementor-divider-separator:before{content:none}.elementor-widget-divider--element-align-left .elementor-divider__element{margin-left:0}.elementor-widget-divider--element-align-right .elementor-divider .elementor-divider-separator>.elementor-divider__svg:last-of-type{-webkit-box-flex:0;-ms-flex-positive:0;flex-grow:0;-ms-flex-negative:100;flex-shrink:100}.elementor-widget-divider--element-align-right .elementor-divider-separator:after{content:none}.elementor-widget-divider--element-align-right .elementor-divider__element{margin-right:0}.elementor-widget-divider:not(.elementor-widget-divider--view-line_text):not(.elementor-widget-divider--view-line_icon) .elementor-divider-separator{border-top:var(--divider-border-width) var(--divider-border-style) var(--divider-color)}.elementor-widget-divider--separator-type-pattern{--divider-border-style:none}.elementor-widget-divider--separator-type-pattern.elementor-widget-divider--view-line .elementor-divider-separator,.elementor-widget-divider--separator-type-pattern:not(.elementor-widget-divider--view-line) .elementor-divider-separator:after,.elementor-widget-divider--separator-type-pattern:not(.elementor-widget-divider--view-line) .elementor-divider-separator:before,.elementor-widget-divider--separator-type-pattern:not([class*=elementor-widget-divider--view]) .elementor-divider-separator{width:100%;min-height:var(--divider-pattern-height);-webkit-mask-size:var(--divider-pattern-size) 100%;mask-size:var(--divider-pattern-size) 100%;-webkit-mask-repeat:var(--divider-pattern-repeat);mask-repeat:var(--divider-pattern-repeat);background-color:var(--divider-color);-webkit-mask-image:var(--divider-pattern-url);mask-image:var(--divider-pattern-url)}.elementor-widget-divider--no-spacing{--divider-pattern-size:auto}.elementor-widget-divider--bg-round{--divider-pattern-repeat:round}.rtl .elementor-widget-divider .elementor-divider__text{direction:rtl}</style>		<div class="elementor-divider" bis_skin_checked="1">
+			<span class="elementor-divider-separator">
+						</span>
+		</div>
+				</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>
+				<section class="elementor-section elementor-top-section elementor-element elementor-element-ceeaa83 elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="ceeaa83" data-element_type="section">
+						<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-50 elementor-top-column elementor-element elementor-element-3e867e4" data-id="3e867e4" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-904234b elementor-widget elementor-widget-heading" data-id="904234b" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h5 class="elementor-heading-title elementor-size-default">Our Services</h5>		</div>
+				</div>
+				<div class="elementor-element elementor-element-ac1ca31 elementor-widget elementor-widget-heading" data-id="ac1ca31" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h3 class="elementor-heading-title elementor-size-default">Serving over 250 Clients in North America</h3>		</div>
+				</div>
+				<div class="elementor-element elementor-element-9c0c68d elementor-widget elementor-widget-text-editor" data-id="9c0c68d" data-element_type="widget" data-widget_type="text-editor.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+							<p>we have over five branches around the world, with our headquarters located in United states</p>						</div>
+				</div>
+				<div class="elementor-element elementor-element-46a2de6 elementor-align-left elementor-widget elementor-widget-button" data-id="46a2de6" data-element_type="widget" data-widget_type="button.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+					<div class="elementor-button-wrapper" bis_skin_checked="1">
+			<a href="http://watchtowerhub.com/?page_id=1223" class="elementor-button-link elementor-button elementor-size-md" role="button" bis_skin_checked="1">
+						<span class="elementor-button-content-wrapper">
+						<span class="elementor-button-text">Contact us</span>
+		</span>
+					</a>
+		</div>
+				</div>
+				</div>
+					</div>
+		</div>
+				<div class="elementor-column elementor-col-50 elementor-top-column elementor-element elementor-element-5784420" data-id="5784420" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated e-swiper-container" bis_skin_checked="1">
+								<section class="elementor-section elementor-inner-section elementor-element elementor-element-ba076a2 elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="ba076a2" data-element_type="section">
+						<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-50 elementor-inner-column elementor-element elementor-element-2ac3447" data-id="2ac3447" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-d927204 elementor-widget elementor-widget-heading" data-id="d927204" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h4 class="elementor-heading-title elementor-size-default"><a href="http://watchtowerhub.com/#" bis_skin_checked="1">Language Translation</a></h4>		</div>
+				</div>
+				<div class="elementor-element elementor-element-96d4a76 elementor-widget elementor-widget-text-editor" data-id="96d4a76" data-element_type="widget" data-widget_type="text-editor.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+							<p>Language translation is one of our great expertise, with the help of the best language translators in our team</p>						</div>
+				</div>
+					</div>
+		</div>
+				<div class="elementor-column elementor-col-50 elementor-inner-column elementor-element elementor-element-2a14bf6" data-id="2a14bf6" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-28009c4 elementor-widget elementor-widget-heading" data-id="28009c4" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h4 class="elementor-heading-title elementor-size-default"><a href="http://watchtowerhub.com/#" bis_skin_checked="1">Publishing</a></h4>		</div>
+				</div>
+				<div class="elementor-element elementor-element-6278720 elementor-widget elementor-widget-text-editor" data-id="6278720" data-element_type="widget" data-widget_type="text-editor.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+							<p>we are here to help publish your documents, with great achievements and recommendations on our publications services in New York and around the world&nbsp;</p>						</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>
+				<div class="elementor-element elementor-element-f81f614 elementor-widget elementor-widget-image-carousel e-widget-swiper" data-id="f81f614" data-element_type="widget" data-settings="{&quot;navigation&quot;:&quot;none&quot;,&quot;slides_to_show&quot;:&quot;1&quot;,&quot;autoplay_speed&quot;:3000,&quot;effect&quot;:&quot;fade&quot;,&quot;speed&quot;:600,&quot;autoplay&quot;:&quot;yes&quot;,&quot;pause_on_hover&quot;:&quot;yes&quot;,&quot;pause_on_interaction&quot;:&quot;yes&quot;,&quot;infinite&quot;:&quot;yes&quot;}" data-widget_type="image-carousel.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+					<div class="elementor-image-carousel-wrapper swiper-container swiper-container-fade swiper-container-initialized swiper-container-horizontal" dir="ltr" bis_skin_checked="1">
+			<div class="elementor-image-carousel swiper-wrapper" style="transition-duration: 0ms;" bis_skin_checked="1"><div class="swiper-slide swiper-slide-duplicate swiper-slide-duplicate-active" data-swiper-slide-index="3" style="width: 684px; opacity: 0; transform: translate3d(0px, 0px, 0px); transition-duration: 0ms;" bis_skin_checked="1"><figure class="swiper-slide-inner"><img class="swiper-slide-image" src="./pexels-fauxels-3184657.jpg" alt="pexels-fauxels-3184657"></figure></div>
+								<div class="swiper-slide swiper-slide-duplicate-next" data-swiper-slide-index="0" style="width: 684px; opacity: 0; transform: translate3d(-684px, 0px, 0px); transition-duration: 0ms;" bis_skin_checked="1"><figure class="swiper-slide-inner"><img class="swiper-slide-image" src="./pexels-fauxels-3184655.jpg" alt="pexels-fauxels-3184655"></figure></div><div class="swiper-slide" data-swiper-slide-index="1" style="width: 684px; opacity: 0; transform: translate3d(-1368px, 0px, 0px); transition-duration: 0ms;" bis_skin_checked="1"><figure class="swiper-slide-inner"><img class="swiper-slide-image" src="./pexels-fauxels-3184643.jpg" alt="pexels-fauxels-3184643"></figure></div><div class="swiper-slide swiper-slide-prev" data-swiper-slide-index="2" style="width: 684px; opacity: 0; transform: translate3d(-2052px, 0px, 0px); transition-duration: 0ms;" bis_skin_checked="1"><figure class="swiper-slide-inner"><img class="swiper-slide-image" src="./pexels-fauxels-3184651.jpg" alt="pexels-fauxels-3184651"></figure></div><div class="swiper-slide swiper-slide-active" data-swiper-slide-index="3" style="width: 684px; opacity: 1; transform: translate3d(-2736px, 0px, 0px); transition-duration: 0ms;" bis_skin_checked="1"><figure class="swiper-slide-inner"><img class="swiper-slide-image" src="./pexels-fauxels-3184657.jpg" alt="pexels-fauxels-3184657"></figure></div>			<div class="swiper-slide swiper-slide-duplicate swiper-slide-next" data-swiper-slide-index="0" style="width: 684px; opacity: 0; transform: translate3d(-3420px, 0px, 0px); transition-duration: 0ms;" bis_skin_checked="1"><figure class="swiper-slide-inner"><img class="swiper-slide-image" src="./pexels-fauxels-3184655.jpg" alt="pexels-fauxels-3184655"></figure></div></div>
+																<span class="swiper-notification" aria-live="assertive" aria-atomic="true"></span></div>
+				</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>
+				<section class="elementor-section elementor-top-section elementor-element elementor-element-9fc2811 elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="9fc2811" data-element_type="section">
+						<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-100 elementor-top-column elementor-element elementor-element-8d25779" data-id="8d25779" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-63ba8c6 elementor-widget elementor-widget-heading" data-id="63ba8c6" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h2 class="elementor-heading-title elementor-size-default">Why Choose Us</h2>		</div>
+				</div>
+				<div class="elementor-element elementor-element-c81f41e elementor-widget elementor-widget-text-editor" data-id="c81f41e" data-element_type="widget" data-widget_type="text-editor.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+							<p>We have a dynamic track record of excellent service delivery and professional finishing in our translation services&nbsp;</p>						</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>
+				<section class="elementor-section elementor-top-section elementor-element elementor-element-bc895d9 elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="bc895d9" data-element_type="section">
+						<div class="elementor-container elementor-column-gap-extended" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-33 elementor-top-column elementor-element elementor-element-808260f" data-id="808260f" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-4ff769a elementor-widget elementor-widget-testimonial" data-id="4ff769a" data-element_type="widget" data-widget_type="testimonial.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<style>/*! elementor - v3.6.4 - 13-04-2022 */
+.elementor-testimonial-wrapper{overflow:hidden;text-align:center}.elementor-testimonial-wrapper .elementor-testimonial-content{font-size:1.3em;margin-bottom:20px}.elementor-testimonial-wrapper .elementor-testimonial-name{line-height:1.5;display:block}.elementor-testimonial-wrapper .elementor-testimonial-job{font-size:.85em;display:block}.elementor-testimonial-wrapper .elementor-testimonial-meta{width:100%;line-height:1}.elementor-testimonial-wrapper .elementor-testimonial-meta-inner{display:inline-block}.elementor-testimonial-wrapper .elementor-testimonial-meta .elementor-testimonial-details,.elementor-testimonial-wrapper .elementor-testimonial-meta .elementor-testimonial-image{display:table-cell;vertical-align:middle}.elementor-testimonial-wrapper .elementor-testimonial-meta .elementor-testimonial-image img{width:60px;height:60px;border-radius:50%;-o-object-fit:cover;object-fit:cover;max-width:none}.elementor-testimonial-wrapper .elementor-testimonial-meta.elementor-testimonial-image-position-aside .elementor-testimonial-image{padding-right:15px}.elementor-testimonial-wrapper .elementor-testimonial-meta.elementor-testimonial-image-position-aside .elementor-testimonial-details{text-align:left}.elementor-testimonial-wrapper .elementor-testimonial-meta.elementor-testimonial-image-position-top .elementor-testimonial-details,.elementor-testimonial-wrapper .elementor-testimonial-meta.elementor-testimonial-image-position-top .elementor-testimonial-image{display:block}.elementor-testimonial-wrapper .elementor-testimonial-meta.elementor-testimonial-image-position-top .elementor-testimonial-image{margin-bottom:20px}</style>		<div class="elementor-testimonial-wrapper" bis_skin_checked="1">
+							<div class="elementor-testimonial-content" bis_skin_checked="1">Republication of my second edition of my book was made easy with the help of "Watch Tower" </div>
+			
+						<div class="elementor-testimonial-meta elementor-has-image elementor-testimonial-image-position-top" bis_skin_checked="1">
+				<div class="elementor-testimonial-meta-inner" bis_skin_checked="1">
+											<div class="elementor-testimonial-image" bis_skin_checked="1">
+							<img width="200" height="200" src="./philip-martin-5aGUyCW_PJw-unsplash.jpg" class="attachment-full size-full" alt="" loading="lazy">						</div>
+					
+										<div class="elementor-testimonial-details" bis_skin_checked="1">
+														<div class="elementor-testimonial-name" bis_skin_checked="1">Alex Gibson</div>
+																						<div class="elementor-testimonial-job" bis_skin_checked="1">writer</div>
+													</div>
+									</div>
+			</div>
+					</div>
+				</div>
+				</div>
+					</div>
+		</div>
+				<div class="elementor-column elementor-col-33 elementor-top-column elementor-element elementor-element-f11cc2f" data-id="f11cc2f" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-83f0068 elementor-widget elementor-widget-testimonial" data-id="83f0068" data-element_type="widget" data-widget_type="testimonial.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+					<div class="elementor-testimonial-wrapper" bis_skin_checked="1">
+							<div class="elementor-testimonial-content" bis_skin_checked="1">having worked with watch tower for the past few years has taught me a lot about relationship globally, and i really appreciate the staffs who are always there to support </div>
+			
+						<div class="elementor-testimonial-meta elementor-has-image elementor-testimonial-image-position-top" bis_skin_checked="1">
+				<div class="elementor-testimonial-meta-inner" bis_skin_checked="1">
+											<div class="elementor-testimonial-image" bis_skin_checked="1">
+							<img width="200" height="200" src="./pexels-andrea-piacquadio-3769021.jpg" class="attachment-full size-full" alt="" loading="lazy">						</div>
+					
+										<div class="elementor-testimonial-details" bis_skin_checked="1">
+														<div class="elementor-testimonial-name" bis_skin_checked="1">Kate Bucher</div>
+																						<div class="elementor-testimonial-job" bis_skin_checked="1">writer</div>
+													</div>
+									</div>
+			</div>
+					</div>
+				</div>
+				</div>
+					</div>
+		</div>
+				<div class="elementor-column elementor-col-33 elementor-top-column elementor-element elementor-element-0ca8bbc" data-id="0ca8bbc" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-c024289 elementor-widget elementor-widget-testimonial" data-id="c024289" data-element_type="widget" data-widget_type="testimonial.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+					<div class="elementor-testimonial-wrapper" bis_skin_checked="1">
+							<div class="elementor-testimonial-content" bis_skin_checked="1">with Watch tower you experience professionalism at its highest and i am glad to be part of it</div>
+			
+						<div class="elementor-testimonial-meta elementor-has-image elementor-testimonial-image-position-top" bis_skin_checked="1">
+				<div class="elementor-testimonial-meta-inner" bis_skin_checked="1">
+											<div class="elementor-testimonial-image" bis_skin_checked="1">
+							<img width="200" height="200" src="./brooke-cagle-7iTE5rhI6lc-unsplash.jpg" class="attachment-full size-full" alt="" loading="lazy">						</div>
+					
+										<div class="elementor-testimonial-details" bis_skin_checked="1">
+														<div class="elementor-testimonial-name" bis_skin_checked="1">Bill Mingo</div>
+																						<div class="elementor-testimonial-job" bis_skin_checked="1">translator</div>
+													</div>
+									</div>
+			</div>
+					</div>
+				</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>
+				<section class="elementor-section elementor-top-section elementor-element elementor-element-6954aff elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="6954aff" data-element_type="section">
+						<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-100 elementor-top-column elementor-element elementor-element-bc6aaa9" data-id="bc6aaa9" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<section class="elementor-section elementor-inner-section elementor-element elementor-element-53d8372 elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="53d8372" data-element_type="section">
+						<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-100 elementor-inner-column elementor-element elementor-element-f5e552e" data-id="f5e552e" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-0853fba elementor-widget elementor-widget-heading" data-id="0853fba" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h2 class="elementor-heading-title elementor-size-default">Clients</h2>		</div>
+				</div>
+				<div class="elementor-element elementor-element-8ff3f3d elementor-widget elementor-widget-text-editor" data-id="8ff3f3d" data-element_type="widget" data-widget_type="text-editor.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+							<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut elit tellus, luctus nec ullamcorper mattis, pulvinar dapibus leo.</p>						</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>
+				<section class="elementor-section elementor-inner-section elementor-element elementor-element-205b3de elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="205b3de" data-element_type="section">
+						<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-100 elementor-inner-column elementor-element elementor-element-32ace0b" data-id="32ace0b" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-9d961a6 elementor-widget elementor-widget-image-gallery" data-id="9d961a6" data-element_type="widget" data-widget_type="image-gallery.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<style>/*! elementor - v3.6.4 - 13-04-2022 */
+.elementor-image-gallery .gallery-item{display:inline-block;text-align:center;vertical-align:top;width:100%;max-width:100%;margin:0 auto}.elementor-image-gallery .gallery-item img{margin:0 auto}.elementor-image-gallery .gallery-item .gallery-caption{margin:0}.elementor-image-gallery figure img{display:block}.elementor-image-gallery figure figcaption{width:100%}.gallery-spacing-custom .elementor-image-gallery .gallery-icon{padding:0}@media (min-width:768px){.elementor-image-gallery .gallery-columns-2 .gallery-item{max-width:50%}.elementor-image-gallery .gallery-columns-3 .gallery-item{max-width:33.33%}.elementor-image-gallery .gallery-columns-4 .gallery-item{max-width:25%}.elementor-image-gallery .gallery-columns-5 .gallery-item{max-width:20%}.elementor-image-gallery .gallery-columns-6 .gallery-item{max-width:16.666%}.elementor-image-gallery .gallery-columns-7 .gallery-item{max-width:14.28%}.elementor-image-gallery .gallery-columns-8 .gallery-item{max-width:12.5%}.elementor-image-gallery .gallery-columns-9 .gallery-item{max-width:11.11%}.elementor-image-gallery .gallery-columns-10 .gallery-item{max-width:10%}}@media (min-width:480px) and (max-width:767px){.elementor-image-gallery .gallery.gallery-columns-2 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-3 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-4 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-5 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-6 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-7 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-8 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-9 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-10 .gallery-item{max-width:50%}}@media (max-width:479px){.elementor-image-gallery .gallery.gallery-columns-2 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-3 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-4 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-5 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-6 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-7 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-8 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-9 .gallery-item,.elementor-image-gallery .gallery.gallery-columns-10 .gallery-item{max-width:100%}}</style>		<div class="elementor-image-gallery" bis_skin_checked="1">
+			<div id="gallery-1" class="gallery galleryid-10 gallery-columns-5 gallery-size-medium" bis_skin_checked="1"><figure class="gallery-item">
+			<div class="gallery-icon landscape" bis_skin_checked="1">
+				<img width="300" height="300" src="./cl_28_11-300x300.png" class="attachment-medium size-medium" alt="" loading="lazy" srcset="http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_11-300x300.png 300w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_11-150x150.png 150w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_11.png 500w" sizes="(max-width: 300px) 100vw, 300px">
+			</div></figure><figure class="gallery-item">
+			<div class="gallery-icon landscape" bis_skin_checked="1">
+				<img width="300" height="300" src="./cl_28_03-300x300.png" class="attachment-medium size-medium" alt="" loading="lazy" srcset="http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_03-300x300.png 300w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_03-150x150.png 150w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_03.png 500w" sizes="(max-width: 300px) 100vw, 300px">
+			</div></figure><figure class="gallery-item">
+			<div class="gallery-icon landscape" bis_skin_checked="1">
+				<img width="300" height="300" src="./cl_28_01-300x300.png" class="attachment-medium size-medium" alt="" loading="lazy" srcset="http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_01-300x300.png 300w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_01-150x150.png 150w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_01.png 500w" sizes="(max-width: 300px) 100vw, 300px">
+			</div></figure><figure class="gallery-item">
+			<div class="gallery-icon landscape" bis_skin_checked="1">
+				<img width="300" height="300" src="./cl_28_04-300x300.png" class="attachment-medium size-medium" alt="" loading="lazy" srcset="http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_04-300x300.png 300w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_04-150x150.png 150w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_04.png 500w" sizes="(max-width: 300px) 100vw, 300px">
+			</div></figure><figure class="gallery-item">
+			<div class="gallery-icon landscape" bis_skin_checked="1">
+				<img width="300" height="300" src="./cl_28_02-300x300.png" class="attachment-medium size-medium" alt="" loading="lazy" srcset="http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_02-300x300.png 300w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_02-150x150.png 150w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_02.png 500w" sizes="(max-width: 300px) 100vw, 300px">
+			</div></figure><figure class="gallery-item">
+			<div class="gallery-icon landscape" bis_skin_checked="1">
+				<img width="300" height="300" src="./cl_28_10-300x300.png" class="attachment-medium size-medium" alt="" loading="lazy" srcset="http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_10-300x300.png 300w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_10-150x150.png 150w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_10.png 500w" sizes="(max-width: 300px) 100vw, 300px">
+			</div></figure><figure class="gallery-item">
+			<div class="gallery-icon landscape" bis_skin_checked="1">
+				<img width="300" height="300" src="./cl_28_09-300x300.png" class="attachment-medium size-medium" alt="" loading="lazy" srcset="http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_09-300x300.png 300w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_09-150x150.png 150w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_09.png 500w" sizes="(max-width: 300px) 100vw, 300px">
+			</div></figure><figure class="gallery-item">
+			<div class="gallery-icon landscape" bis_skin_checked="1">
+				<img width="300" height="300" src="./cl_28_13-300x300.png" class="attachment-medium size-medium" alt="" loading="lazy" srcset="http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_13-300x300.png 300w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_13-150x150.png 150w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_13.png 500w" sizes="(max-width: 300px) 100vw, 300px">
+			</div></figure><figure class="gallery-item">
+			<div class="gallery-icon landscape" bis_skin_checked="1">
+				<img width="300" height="300" src="./cl_28_07-300x300.png" class="attachment-medium size-medium" alt="" loading="lazy" srcset="http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_07-300x300.png 300w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_07-150x150.png 150w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_07.png 500w" sizes="(max-width: 300px) 100vw, 300px">
+			</div></figure><figure class="gallery-item">
+			<div class="gallery-icon landscape" bis_skin_checked="1">
+				<img width="300" height="300" src="./cl_28_05-300x300.png" class="attachment-medium size-medium" alt="" loading="lazy" srcset="http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_05-300x300.png 300w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_05-150x150.png 150w, http://watchtowerhub.com/wp-content/uploads/2020/11/cl_28_05.png 500w" sizes="(max-width: 300px) 100vw, 300px">
+			</div></figure>
+		</div>
+		</div>
+				</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>
+					</div>
+		</div>
+							</div>
+		</section>
+				<section class="elementor-section elementor-top-section elementor-element elementor-element-36b3fae elementor-section-boxed elementor-section-height-default elementor-section-height-default" data-id="36b3fae" data-element_type="section" data-settings="{&quot;background_background&quot;:&quot;classic&quot;}">
+							<div class="elementor-background-overlay" bis_skin_checked="1" style="background-image: none;"></div>
+							<div class="elementor-container elementor-column-gap-default" bis_skin_checked="1">
+					<div class="elementor-column elementor-col-100 elementor-top-column elementor-element elementor-element-c6e11a4" data-id="c6e11a4" data-element_type="column" bis_skin_checked="1">
+			<div class="elementor-widget-wrap elementor-element-populated" bis_skin_checked="1">
+								<div class="elementor-element elementor-element-acc04ee elementor-widget elementor-widget-heading" data-id="acc04ee" data-element_type="widget" data-widget_type="heading.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+			<h2 class="elementor-heading-title elementor-size-default">Ready to Publish Your Next Book?</h2>		</div>
+				</div>
+				<div class="elementor-element elementor-element-354947c elementor-widget elementor-widget-text-editor" data-id="354947c" data-element_type="widget" data-widget_type="text-editor.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+							<p>We are here to provide the best publishing service</p>						</div>
+				</div>
+				<div class="elementor-element elementor-element-3d51a34 elementor-align-center elementor-widget elementor-widget-button" data-id="3d51a34" data-element_type="widget" data-widget_type="button.default" bis_skin_checked="1">
+				<div class="elementor-widget-container" bis_skin_checked="1">
+					<div class="elementor-button-wrapper" bis_skin_checked="1">
+			<a href="http://watchtowerhub.com/?page_id=1223" class="elementor-button-link elementor-button elementor-size-md" role="button" bis_skin_checked="1">
+						<span class="elementor-button-content-wrapper">
+						<span class="elementor-button-text">Get Started</span>
+		</span>
+					</a>
+		</div>
+				</div>
+				</div>
+					</div>
+		</div>
+							</div>
+		</section>
+							</div>
+		</div><!-- .entry-content -->
+	</div>
+</article><!-- #post-10 -->
+
+			</div>
+					</main><!-- #main -->
+			</div>
+</div><!-- #primary -->
+	</div><!-- #inner-wrap -->
+	<footer id="colophon" class="site-footer" role="contentinfo">
+	<div class="site-footer-wrap" bis_skin_checked="1">
+		<div class="site-bottom-footer-wrap site-footer-row-container site-footer-focus-item site-footer-row-layout-standard site-footer-row-tablet-layout-default site-footer-row-mobile-layout-default" data-section="kadence_customizer_footer_bottom" bis_skin_checked="1">
+	<div class="site-footer-row-container-inner" bis_skin_checked="1">
+				<div class="site-container" bis_skin_checked="1">
+			<div class="site-bottom-footer-inner-wrap site-footer-row site-footer-row-columns-2 site-footer-row-column-layout-equal site-footer-row-tablet-column-layout-default site-footer-row-mobile-column-layout-row ft-ro-dir-row ft-ro-collapse-normal ft-ro-t-dir-default ft-ro-m-dir-default ft-ro-lstyle-plain" bis_skin_checked="1">
+									<div class="site-footer-bottom-section-1 site-footer-section footer-section-inner-items-1" bis_skin_checked="1">
+						
+<div class="footer-widget-area site-info site-footer-focus-item content-align-default content-tablet-align-default content-mobile-align-default content-valign-default content-tablet-valign-default content-mobile-valign-default" data-section="kadence_customizer_footer_html" bis_skin_checked="1">
+	<div class="footer-widget-area-inner site-info-inner" bis_skin_checked="1">
+		<div class="footer-html inner-link-style-normal" bis_skin_checked="1"><div class="footer-html-inner" bis_skin_checked="1"><p>© 2022 Watch Tower Hub</p>
+</div></div>	</div>
+</div><!-- .site-info -->
+					</div>
+										<div class="site-footer-bottom-section-2 site-footer-section footer-section-inner-items-1" bis_skin_checked="1">
+						<div class="footer-widget-area widget-area site-footer-focus-item footer-social content-align-right content-tablet-align-left content-mobile-align-default content-valign-default content-tablet-valign-default content-mobile-valign-default" data-section="kadence_customizer_footer_social" bis_skin_checked="1">
+	<div class="footer-widget-area-inner footer-social-inner" bis_skin_checked="1">
+		<div class="footer-social-wrap" bis_skin_checked="1"><div class="footer-social-inner-wrap social-show-label-false social-style-filled" bis_skin_checked="1"><a href="http://watchtowerhub.com/" aria-label="Facebook" target="_blank" rel="noopener noreferrer" class="social-button footer-social-item social-link-facebook" bis_skin_checked="1"><span class="kadence-svg-iconset"><svg class="kadence-svg-icon kadence-facebook-svg" fill="currentColor" version="1.1" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><title>Facebook</title><path d="M31.997 15.999c0-8.836-7.163-15.999-15.999-15.999s-15.999 7.163-15.999 15.999c0 7.985 5.851 14.604 13.499 15.804v-11.18h-4.062v-4.625h4.062v-3.525c0-4.010 2.389-6.225 6.043-6.225 1.75 0 3.581 0.313 3.581 0.313v3.937h-2.017c-1.987 0-2.607 1.233-2.607 2.498v3.001h4.437l-0.709 4.625h-3.728v11.18c7.649-1.2 13.499-7.819 13.499-15.804z"></path>
+				</svg></span></a><a href="http://watchtowerhub.com/" aria-label="Twitter" target="_blank" rel="noopener noreferrer" class="social-button footer-social-item social-link-twitter" bis_skin_checked="1"><span class="kadence-svg-iconset"><svg class="kadence-svg-icon kadence-twitter-svg" fill="currentColor" version="1.1" xmlns="http://www.w3.org/2000/svg" width="26" height="28" viewBox="0 0 26 28"><title>Twitter</title><path d="M25.312 6.375c-0.688 1-1.547 1.891-2.531 2.609 0.016 0.219 0.016 0.438 0.016 0.656 0 6.672-5.078 14.359-14.359 14.359-2.859 0-5.516-0.828-7.75-2.266 0.406 0.047 0.797 0.063 1.219 0.063 2.359 0 4.531-0.797 6.266-2.156-2.219-0.047-4.078-1.5-4.719-3.5 0.313 0.047 0.625 0.078 0.953 0.078 0.453 0 0.906-0.063 1.328-0.172-2.312-0.469-4.047-2.5-4.047-4.953v-0.063c0.672 0.375 1.453 0.609 2.281 0.641-1.359-0.906-2.25-2.453-2.25-4.203 0-0.938 0.25-1.797 0.688-2.547 2.484 3.062 6.219 5.063 10.406 5.281-0.078-0.375-0.125-0.766-0.125-1.156 0-2.781 2.25-5.047 5.047-5.047 1.453 0 2.766 0.609 3.687 1.594 1.141-0.219 2.234-0.641 3.203-1.219-0.375 1.172-1.172 2.156-2.219 2.781 1.016-0.109 2-0.391 2.906-0.781z"></path>
+				</svg></span></a><a href="http://watchtowerhub.com/" aria-label="Instagram" target="_blank" rel="noopener noreferrer" class="social-button footer-social-item social-link-instagram" bis_skin_checked="1"><span class="kadence-svg-iconset"><svg class="kadence-svg-icon kadence-instagram-svg" fill="currentColor" version="1.1" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><title>Instagram</title><path d="M21.138 0.242c3.767 0.007 3.914 0.038 4.65 0.144 1.52 0.219 2.795 0.825 3.837 1.821 0.584 0.562 0.987 1.112 1.349 1.848 0.442 0.899 0.659 1.75 0.758 3.016 0.021 0.271 0.031 4.592 0.031 8.916s-0.009 8.652-0.030 8.924c-0.098 1.245-0.315 2.104-0.743 2.986-0.851 1.755-2.415 3.035-4.303 3.522-0.685 0.177-1.304 0.26-2.371 0.31-0.381 0.019-4.361 0.024-8.342 0.024s-7.959-0.012-8.349-0.029c-0.921-0.044-1.639-0.136-2.288-0.303-1.876-0.485-3.469-1.784-4.303-3.515-0.436-0.904-0.642-1.731-0.751-3.045-0.031-0.373-0.039-2.296-0.039-8.87 0-2.215-0.002-3.866 0-5.121 0.006-3.764 0.037-3.915 0.144-4.652 0.219-1.518 0.825-2.795 1.825-3.833 0.549-0.569 1.105-0.975 1.811-1.326 0.915-0.456 1.756-0.668 3.106-0.781 0.374-0.031 2.298-0.038 8.878-0.038h5.13zM15.999 4.364v0c-3.159 0-3.555 0.014-4.796 0.070-1.239 0.057-2.084 0.253-2.824 0.541-0.765 0.297-1.415 0.695-2.061 1.342s-1.045 1.296-1.343 2.061c-0.288 0.74-0.485 1.586-0.541 2.824-0.056 1.241-0.070 1.638-0.070 4.798s0.014 3.556 0.070 4.797c0.057 1.239 0.253 2.084 0.541 2.824 0.297 0.765 0.695 1.415 1.342 2.061s1.296 1.046 2.061 1.343c0.74 0.288 1.586 0.484 2.825 0.541 1.241 0.056 1.638 0.070 4.798 0.070s3.556-0.014 4.797-0.070c1.239-0.057 2.085-0.253 2.826-0.541 0.765-0.297 1.413-0.696 2.060-1.343s1.045-1.296 1.343-2.061c0.286-0.74 0.482-1.586 0.541-2.824 0.056-1.241 0.070-1.637 0.070-4.797s-0.015-3.557-0.070-4.798c-0.058-1.239-0.255-2.084-0.541-2.824-0.298-0.765-0.696-1.415-1.343-2.061s-1.295-1.045-2.061-1.342c-0.742-0.288-1.588-0.484-2.827-0.541-1.241-0.056-1.636-0.070-4.796-0.070zM14.957 6.461c0.31-0 0.655 0 1.044 0 3.107 0 3.475 0.011 4.702 0.067 1.135 0.052 1.75 0.241 2.16 0.401 0.543 0.211 0.93 0.463 1.337 0.87s0.659 0.795 0.871 1.338c0.159 0.41 0.349 1.025 0.401 2.16 0.056 1.227 0.068 1.595 0.068 4.701s-0.012 3.474-0.068 4.701c-0.052 1.135-0.241 1.75-0.401 2.16-0.211 0.543-0.463 0.93-0.871 1.337s-0.794 0.659-1.337 0.87c-0.41 0.16-1.026 0.349-2.16 0.401-1.227 0.056-1.595 0.068-4.702 0.068s-3.475-0.012-4.702-0.068c-1.135-0.052-1.75-0.242-2.161-0.401-0.543-0.211-0.931-0.463-1.338-0.87s-0.659-0.794-0.871-1.337c-0.159-0.41-0.349-1.025-0.401-2.16-0.056-1.227-0.067-1.595-0.067-4.703s0.011-3.474 0.067-4.701c0.052-1.135 0.241-1.75 0.401-2.16 0.211-0.543 0.463-0.931 0.871-1.338s0.795-0.659 1.338-0.871c0.41-0.16 1.026-0.349 2.161-0.401 1.073-0.048 1.489-0.063 3.658-0.065v0.003zM16.001 10.024c-3.3 0-5.976 2.676-5.976 5.976s2.676 5.975 5.976 5.975c3.3 0 5.975-2.674 5.975-5.975s-2.675-5.976-5.975-5.976zM16.001 12.121c2.142 0 3.879 1.736 3.879 3.879s-1.737 3.879-3.879 3.879c-2.142 0-3.879-1.737-3.879-3.879s1.736-3.879 3.879-3.879zM22.212 8.393c-0.771 0-1.396 0.625-1.396 1.396s0.625 1.396 1.396 1.396 1.396-0.625 1.396-1.396c0-0.771-0.625-1.396-1.396-1.396v0.001z"></path>
+				</svg></span></a></div></div>	</div>
+</div><!-- data-section="footer_social" -->
+					</div>
+								</div>
+		</div>
+	</div>
+</div>
+	</div>
+</footer><!-- #colophon -->
+
+</div><!-- #wrapper -->
+
+<a id="kt-scroll-up" tabindex="-1" aria-hidden="true" aria-label="Scroll to top" href="http://watchtowerhub.com/#wrapper" class="kadence-scroll-to-top scroll-up-wrap scroll-ignore scroll-up-side-right scroll-up-style-filled vs-lg-true vs-md-false vs-sm-false" bis_skin_checked="1"><span class="kadence-svg-iconset"><svg aria-hidden="true" class="kadence-svg-icon kadence-arrow-up-svg" fill="currentColor" version="1.1" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><title>Scroll to top</title><path d="M5.707 12.707l5.293-5.293v11.586c0 0.552 0.448 1 1 1s1-0.448 1-1v-11.586l5.293 5.293c0.391 0.391 1.024 0.391 1.414 0s0.391-1.024 0-1.414l-7-7c-0.092-0.092-0.202-0.166-0.324-0.217s-0.253-0.076-0.383-0.076c-0.256 0-0.512 0.098-0.707 0.293l-7 7c-0.391 0.391-0.391 1.024 0 1.414s1.024 0.391 1.414 0z"></path>
+				</svg></span></a><button id="kt-scroll-up-reader" href="#wrapper" aria-label="Scroll to top" class="kadence-scroll-to-top scroll-up-wrap scroll-ignore scroll-up-side-right scroll-up-style-filled vs-lg-true vs-md-false vs-sm-false"><span class="kadence-svg-iconset"><svg aria-hidden="true" class="kadence-svg-icon kadence-arrow-up-svg" fill="currentColor" version="1.1" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><title>Scroll to top</title><path d="M5.707 12.707l5.293-5.293v11.586c0 0.552 0.448 1 1 1s1-0.448 1-1v-11.586l5.293 5.293c0.391 0.391 1.024 0.391 1.414 0s0.391-1.024 0-1.414l-7-7c-0.092-0.092-0.202-0.166-0.324-0.217s-0.253-0.076-0.383-0.076c-0.256 0-0.512 0.098-0.707 0.293l-7 7c-0.391 0.391-0.391 1.024 0 1.414s1.024 0.391 1.414 0z"></path>
+				</svg></span></button>	<div id="mobile-drawer" class="popup-drawer popup-drawer-layout-sidepanel popup-drawer-animation-fade popup-drawer-side-right" data-drawer-target-string="#mobile-drawer" bis_skin_checked="1">
+		<div class="drawer-overlay" data-drawer-target-string="#mobile-drawer" bis_skin_checked="1"></div>
+		<div class="drawer-inner" bis_skin_checked="1">
+						<div class="drawer-header" bis_skin_checked="1">
+				<button class="menu-toggle-close drawer-toggle" aria-label="Close menu" data-toggle-target="#mobile-drawer" data-toggle-body-class="showing-popup-drawer-from-right" aria-expanded="false" data-set-focus=".menu-toggle-open">
+					<span class="toggle-close-bar"></span>
+					<span class="toggle-close-bar"></span>
+				</button>
+			</div>
+			<div class="drawer-content mobile-drawer-content content-align-left content-valign-top" bis_skin_checked="1">
+								<div class="site-header-item site-header-focus-item site-header-item-mobile-navigation mobile-navigation-layout-stretch-false" data-section="kadence_customizer_mobile_navigation" bis_skin_checked="1">
+		<nav id="mobile-site-navigation" class="mobile-navigation drawer-navigation drawer-navigation-parent-toggle-false" role="navigation" aria-label="Primary Mobile Navigation">
+				<div class="mobile-menu-container drawer-menu-container" bis_skin_checked="1">
+			<ul id="mobile-menu" class="menu has-collapse-sub-nav"><li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-home current-menu-item page_item page-item-10 current_page_item menu-item-2174"><a href="http://watchtowerhub.com/" aria-current="page" bis_skin_checked="1">Home</a></li>
+<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-2175"><a href="http://watchtowerhub.com/?page_id=1443" bis_skin_checked="1">About</a></li>
+<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-2176"><a href="http://watchtowerhub.com/?page_id=1223" bis_skin_checked="1">Contact</a></li>
+<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-2177"><a href="http://watchtowerhub.com/?page_id=1782" bis_skin_checked="1">Services</a></li>
+</ul>		</div>
+	</nav><!-- #site-navigation -->
+	</div><!-- data-section="mobile_navigation" -->
+							</div>
+		</div>
+	</div>
+	<link rel="stylesheet" id="e-animations-css" href="./animations.min.css" media="all">
+<script id="crisp-js-before">
+    window.$crisp=[];
+    CRISP_RUNTIME_CONFIG = {
+      locale : 'en'
+    };
+    CRISP_WEBSITE_ID = '75a757af-490e-42cd-8cd7-e0e5698fabea';
+</script>
+<script async="" src="./l.js.download" id="crisp-js"></script>
+<script id="kadence-navigation-js-extra">
+var kadenceConfig = {"screenReader":{"expand":"Expand child menu","collapse":"Collapse child menu"},"breakPoints":{"desktop":"1024","tablet":768}};
+</script>
+<script src="./navigation.min.js.download" id="kadence-navigation-js" async=""></script>
+<script src="./jquery.min.js.download" id="jquery-core-js"></script>
+<script src="./jquery-migrate.min.js.download" id="jquery-migrate-js"></script>
+<script src="./jquery-numerator.min.js.download" id="jquery-numerator-js"></script>
+<script src="./webpack.runtime.min.js.download" id="elementor-webpack-runtime-js"></script>
+<script src="./frontend-modules.min.js.download" id="elementor-frontend-modules-js"></script>
+<script src="./waypoints.min.js.download" id="elementor-waypoints-js"></script>
+<script src="./core.min.js.download" id="jquery-ui-core-js"></script>
+<script id="elementor-frontend-js-before">
+var elementorFrontendConfig = {"environmentMode":{"edit":false,"wpPreview":false,"isScriptDebug":false},"i18n":{"shareOnFacebook":"Share on Facebook","shareOnTwitter":"Share on Twitter","pinIt":"Pin it","download":"Download","downloadImage":"Download image","fullscreen":"Fullscreen","zoom":"Zoom","share":"Share","playVideo":"Play Video","previous":"Previous","next":"Next","close":"Close"},"is_rtl":false,"breakpoints":{"xs":0,"sm":480,"md":768,"lg":1025,"xl":1440,"xxl":1600},"responsive":{"breakpoints":{"mobile":{"label":"Mobile","value":767,"default_value":767,"direction":"max","is_enabled":true},"mobile_extra":{"label":"Mobile Extra","value":880,"default_value":880,"direction":"max","is_enabled":false},"tablet":{"label":"Tablet","value":1024,"default_value":1024,"direction":"max","is_enabled":true},"tablet_extra":{"label":"Tablet Extra","value":1200,"default_value":1200,"direction":"max","is_enabled":false},"laptop":{"label":"Laptop","value":1366,"default_value":1366,"direction":"max","is_enabled":false},"widescreen":{"label":"Widescreen","value":2400,"default_value":2400,"direction":"min","is_enabled":false}}},"version":"3.6.4","is_static":false,"experimentalFeatures":{"e_dom_optimization":true,"e_optimized_assets_loading":true,"e_optimized_css_loading":true,"a11y_improvements":true,"e_import_export":true,"additional_custom_breakpoints":true,"e_hidden_wordpress_widgets":true,"landing-pages":true,"elements-color-picker":true,"favorite-widgets":true,"admin-top-bar":true},"urls":{"assets":"http:\/\/watchtowerhub.com\/wp-content\/plugins\/elementor\/assets\/"},"settings":{"page":[],"editorPreferences":[]},"kit":{"active_breakpoints":["viewport_mobile","viewport_tablet"],"global_image_lightbox":"yes","lightbox_enable_counter":"yes","lightbox_enable_fullscreen":"yes","lightbox_enable_zoom":"yes","lightbox_enable_share":"yes","lightbox_title_src":"title","lightbox_description_src":"description"},"post":{"id":10,"title":"Watch%20Tower%20Hub%20%E2%80%93%20Watch%20Tower%20Hub","excerpt":"","featuredImage":false}};
+</script>
+<script src="./frontend.min.js.download" id="elementor-frontend-js"></script><span id="elementor-device-mode" class="elementor-screen-only"></span>
+
+
+
+<!--
+Performance optimized by W3 Total Cache. Learn more: https://www.boldgrid.com/w3-total-cache/
+
+Object Caching 0/248 objects using apc
+Page Caching using apc{w3tc_pagecache_reject_reason}
+Database Caching 2/125 queries in 0.482 seconds using apc (Request-wide modification query)
+
+Served from: watchtowerhub.com @ 2022-04-23 14:53:08 by W3 Total Cache
+--><script src="./swiper.min.js.download"></script><div class="crisp-client" bis_skin_checked="1"><div class="cc-l3zb" bis_skin_checked="1"><div class="cc-lcor" bis_skin_checked="1"><style type="text/css">.crisp-client .cc-kv6t .cc-6zjc,
+.crisp-client .cc-kv6t .cc-1mk2:hover {
+  color: #FFFFFF !important;
+}
+
+.crisp-client .cc-kv6t .cc-jq4y,
+.crisp-client .cc-kv6t .cc-5lan:hover {
+  color: #2943D1 !important;
+}
+
+.crisp-client .cc-kv6t .cc-k5w4 {
+  background-color: #FFFFFF !important;
+}
+
+.crisp-client .cc-kv6t .cc-5ekd {
+  background-color: #001797 !important;
+}
+
+.crisp-client .cc-kv6t .cc-16jc {
+  background-color: #1732C4 !important;
+}
+
+.crisp-client .cc-kv6t .cc-1ada,
+.crisp-client .cc-kv6t .cc-ew5j:before,
+.crisp-client .cc-kv6t .cc-ew5j:after {
+  background-color: #2943D1 !important;
+}
+
+.crisp-client .cc-kv6t .cc-y5jx {
+  background-color: #F5F5FB !important;
+}
+
+.crisp-client .cc-kv6t .cc-y6ot,
+.crisp-client .cc-kv6t .cc-183m:hover {
+  background-color: #F9F9F9 !important;
+}
+
+.crisp-client .cc-kv6t .cc-1ybb {
+  background-image: linear-gradient(125deg, #2943D1 -10%, #001797 100%) !important;
+}
+
+.crisp-client .cc-kv6t .cc-ofgq,
+.crisp-client .cc-kv6t .cc-fg2d:hover {
+  border-color: #FFFFFF !important;
+}
+
+.crisp-client .cc-kv6t .cc-2ydi {
+  border-color: rgba(0, 23, 151, 0.175) !important;
+}
+
+.crisp-client .cc-kv6t .cc-1aev,
+.crisp-client .cc-kv6t .cc-2hzo:hover,
+.crisp-client .cc-kv6t .cc-18sf:before,
+.crisp-client .cc-kv6t .cc-18sf:after {
+  border-color: #2943D1 !important;
+}
+
+.crisp-client .cc-kv6t .cc-1nph {
+  border-color: rgba(41, 67, 209, 0.15) !important;
+}
+
+.crisp-client .cc-kv6t .cc-1o96 {
+  border-top-color: #2943D1 !important;
+}
+
+.crisp-client .cc-kv6t .cc-ve3u,
+.crisp-client .cc-kv6t .cc-1nmg:hover {
+  border-color: #F5F5FB !important;
+}
+
+.crisp-client .cc-kv6t .cc-clw4::placeholder {
+  color: #5D73EA !important;
+}
+
+.crisp-client .cc-kv6t .cc-2n8m::placeholder {
+  color: #5D73EA !important;
+}
+
+.crisp-client .cc-kv6t .cc-3x4f,
+.crisp-client .cc-kv6t .cc-1afs:hover,
+.crisp-client .cc-kv6t .cc-3x4f:hover,
+.crisp-client .cc-kv6t .cc-1afs:active,
+.crisp-client .cc-kv6t .cc-3x4f:active,
+.crisp-client .cc-kv6t .cc-1c1d:hover .cc-1f87,
+.crisp-client .cc-kv6t .cc-1c1d .cc-1f87:active {
+  background: #001797 !important;
+}
+
+.crisp-client .cc-kv6t .cc-4xbu,
+.crisp-client .cc-kv6t .cc-caj5:hover {
+  background: #112BB9 !important;
+}
+
+.crisp-client .cc-kv6t .cc-4xbu:hover,
+.crisp-client .cc-kv6t .cc-caj5:active {
+  background: #061FA7 !important;
+}
+
+.crisp-client .cc-kv6t .cc-4xbu:active {
+  background: #001797 !important;
+}
+
+.crisp-client .cc-kv6t .cc-g73w:hover .cc-199t {
+  background: #112BB9 !important;
+}
+
+.crisp-client .cc-kv6t .cc-g73w .cc-199t:active {
+  background: #061FA7 !important;
+}
+
+.crisp-client .cc-kv6t .cc-vuur,
+.crisp-client .cc-kv6t .cc-7rgf[data-active="true"] {
+  background: #2943D1 !important;
+}
+
+.crisp-client .cc-kv6t .cc-vuur:hover,
+.crisp-client .cc-kv6t .cc-7rgf[data-active="true"]:active {
+  background: #1732C4 !important;
+}
+
+.crisp-client .cc-kv6t .cc-vuur:active {
+  background: #112BB9 !important;
+}
+
+.crisp-client .cc-kv6t .cc-1gmp::selection,
+.crisp-client .cc-kv6t .cc-1gmp *::selection {
+  color: #191919 !important;
+  background-color: #DDE2FF !important;
+}</style></div><div class="cc-1kny" bis_skin_checked="1"><style type="text/css">.crisp-client .cc-kv6t {
+  z-index: 1000000;
+}
+</style></div></div><div id="crisp-chatbox" lang="en" dir="ltr" translate="no" data-blocked="false" data-lock-maximized="false" data-last-operator-face="false" data-availability-tooltip="false" data-hide-vacation="false" data-hide-on-away="false" data-hide-on-mobile="false" data-position-reverse="false" data-full-view="false" data-small-view="true" data-large-view="false" data-availability="away" data-is-activity-ongoing="false" data-was-availability-online="false" data-has-local-messages="false" class="cc-kv6t" bis_skin_checked="1"><div class="cc-1xry cc-1gmp" bis_skin_checked="1"><a data-maximized="false" data-is-failure="false" role="button" class="cc-unoo" data-cshid="bf66f97c-18a2-06da-9ad2-607ade85a2b9"><span class="cc-1c9v"><span data-id="general_entice" data-with-helpdesk="false" data-is-concealed="false" class="cc-1bue"><span class="cc-1bcp"><span class="cc-1s28 cc-kgeu"><span class="cc-tkyh"><span class="cc-1t9t"><span class="cc-g0ak cc-hy0f"></span><span data-has-avatar="true" class="cc-xc93"><span class="cc-17df"><span class="cc-od26 cc-151q">Questions? Chat with us!</span><span data-id="online" class="cc-1rau cc-kgeu">Support is online.</span><span data-id="away" class="cc-1rau cc-kgeu">Support is away.</span></span><span class="cc-56dg"><span class="cc-8exe cc-he6y"><span style="background-image: url(&#39;https://image.crisp.chat/avatar/operator/ad3b5885-61a4-4750-af43-5a11b917fb6f/240/?1649918529040&#39;) !important;" class="cc-1h5w cc-wsm4"></span></span></span></span></span></span><span data-when="online" class="cc-rzi5"><span class="cc-1yk0 cc-183m"><span class="cc-1viy"><span class="cc-16up cc-jq4y cc-151q">Chat with Watch Tower Hub Team</span></span></span></span><span data-when="away" class="cc-rzi5"><span class="cc-1yk0 cc-183m"><span class="cc-1viy"><span class="cc-16up cc-jq4y cc-151q">Chat with Watch Tower Hub Team</span></span></span></span></span></span></span></span><span class="cc-7doi cc-1ada"><span data-id="chat_closed" class="cc-1iv2"><span class="cc-1yxw"><span class="cc-16qx cc-1eqr"></span></span><span data-is-ongoing="false" class="cc-15mo"></span></span></span></a></div></div></div></body></html>
